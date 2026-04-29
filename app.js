@@ -553,6 +553,11 @@ The preview is designed as a print page first, then scaled for screen reading.
       ? warnings[0]
       : `${state.deck.slides.length} slide${state.deck.slides.length === 1 ? "" : "s"} rendered in ${elapsed}ms`;
     elements.status.classList.toggle("warning", warnings.length > 0);
+    console.debug("[Slip] preview render", {
+      slides: state.deck.slides.length,
+      elapsedMs: elapsed,
+      warnings: warnings.length,
+    });
   }
 
   function collectWarnings(deck) {

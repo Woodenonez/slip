@@ -47,9 +47,6 @@
 - Scoped custom CSS selectors to slide content before injecting styles.
 - Preserved custom CSS in the Markdown source of truth.
 - Verified custom CSS support with `node --check app.js` and `npm run build`; the existing large bundle warning remains.
-
-## 2026-04-29 (5)
-
 - Committed the custom CSS step as `e32ca55`.
 - Started the next V1 usability step without adding dependencies.
 - Reworked Auto Split into a review-and-accept workflow instead of immediately rewriting the deck.
@@ -57,10 +54,34 @@
 - Added a deterministic max-content heuristic for oversized heading sections.
 - Verified the Auto Split review workflow with `node --check app.js` and `npm run build`; the existing large bundle warning remains.
 
+## 2026-04-29 (5)
+
+- Started V1 exit-quality regression testing.
+- Introduced Playwright test tooling as a development dependency for real browser layout checks.
+- Added `npm run test` and `npm run test:v1` scripts.
+- Added V1 browser regression coverage for fixed slide sizing, print page CSS, multi-slide overflow reporting, Mirror Mode, Presenter Mode, and Auto Split review acceptance.
+- Documented the V1 regression command in `README.md`.
+- Installed the Playwright Chromium browser binary required to run local browser regressions.
+- Verified with `npm run check`, `npm run build`, and `npm run test:v1`; the existing Vite large bundle warning remains.
+
+## 2026-04-29 (6)
+
+- Continued V1 exit-quality work without adding dependencies.
+- Added development console timing for preview renders with slide count, elapsed milliseconds, and warning count.
+- Added a Playwright regression for a 120-slide deck covering render completion, outline population, and outline navigation.
+- Verified with `npm run check`, `npm run build`, and `npm run test:v1`; the V1 browser suite now runs 5 passing tests.
+- Continued V1 production/static-hosting polish without adding dependencies.
+- Added `vite.config.js` with relative asset paths so `dist/` can be hosted from a domain root or subpath.
+- Added `npm run release:check` to run syntax validation, production build, and V1 browser regressions together.
+- Documented production preview, static hosting, and release-check commands in `README.md`.
+- Verified with `npm run release:check`; the V1 browser suite still runs 5 passing tests and the existing Vite large bundle warning remains.
+- Renamed `plan/v1.md` to `plan/v1_done.md` to mark V1 as complete.
+- Smoke-tested the production preview with `npm run preview` and confirmed `http://127.0.0.1:4173/` returns HTTP 200.
+
 ## Dependencies
 
 - Runtime dependencies introduced: CodeMirror 6 packages for the editor, KaTeX for math rendering, highlight.js for code highlighting.
-- Build dependencies introduced: Vite.
-- External packages introduced: `@codemirror/state`, `@codemirror/view`, `@codemirror/commands`, `@codemirror/lang-markdown`, `@codemirror/language`, `@codemirror/search`, `@codemirror/autocomplete`, `@lezer/highlight`, `highlight.js`, `katex`, and `vite`.
-- Verification tools used: `node --check app.js`, `npm run build`.
+- Build and test dependencies introduced: Vite, Playwright.
+- External packages introduced: `@codemirror/state`, `@codemirror/view`, `@codemirror/commands`, `@codemirror/lang-markdown`, `@codemirror/language`, `@codemirror/search`, `@codemirror/autocomplete`, `@lezer/highlight`, `highlight.js`, `katex`, `vite`, and `@playwright/test`.
+- Verification tools used: `node --check app.js`, `npm run build`, `npm run test:v1`, `npm run release:check`.
 - Browser APIs used: `localStorage`, `FileReader`, `Blob`, `URL.createObjectURL`, drag-and-drop events, and `window.print()`.
