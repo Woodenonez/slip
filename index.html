@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Slip Markdown Slides</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div id="app" class="app">
+      <header class="toolbar">
+        <div class="brand">
+          <strong>Slip</strong>
+          <span id="deck-title">Untitled deck</span>
+        </div>
+        <div class="toolbar-actions">
+          <label class="file-button">
+            Import
+            <input id="import-file" type="file" accept=".md,.markdown,text/markdown,text/plain">
+          </label>
+          <button id="export-md" type="button">Export MD</button>
+          <button id="auto-split" type="button">Auto Split</button>
+          <button id="print-pdf" type="button">Print / PDF</button>
+          <button id="present" type="button">Present</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="outline" aria-label="Slide outline">
+          <div class="panel-title">Slides</div>
+          <ol id="outline-list"></ol>
+        </aside>
+
+        <section class="editor-pane" aria-label="Markdown editor">
+          <div class="pane-header">
+            <span>Markdown</span>
+            <select id="theme-picker" aria-label="Theme">
+              <option value="clean">Clean</option>
+              <option value="contrast">Contrast</option>
+              <option value="paper">Paper</option>
+            </select>
+          </div>
+          <textarea id="editor" spellcheck="false"></textarea>
+          <div id="status" class="status" aria-live="polite"></div>
+        </section>
+
+        <section class="preview-pane" aria-label="Slide preview">
+          <div class="pane-header">
+            <span>Preview</span>
+            <label class="notes-toggle">
+              <input id="show-notes" type="checkbox">
+              Notes
+            </label>
+          </div>
+          <div id="preview" class="preview"></div>
+        </section>
+      </main>
+    </div>
+
+    <div id="presentation" class="presentation" hidden>
+      <button id="exit-present" class="exit-present" type="button" aria-label="Exit presentation">Exit</button>
+      <article id="presentation-slide" class="presentation-slide"></article>
+      <footer class="presentation-footer">
+        <span id="presentation-count"></span>
+        <span id="presentation-notes"></span>
+      </footer>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
