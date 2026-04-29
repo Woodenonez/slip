@@ -118,6 +118,11 @@ $$
 $$
 ```
 
+## Contributors
+
+- Ze: project owner and direction.
+- OpenAI Codex: implementation assistance, testing support, and documentation updates.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

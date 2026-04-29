@@ -92,3 +92,4 @@
 - Found project metadata still declared `ISC`; changed root package metadata to `MIT`.
 - Added a root MIT `LICENSE` file and documented the license in `README.md`.
 - Compatibility notes: runtime dependencies are MIT or BSD-style; development/build dependencies include Apache-2.0 and MPL-2.0 packages that do not block publishing Slip under MIT when their notices are preserved.
+- Added README contributors for Ze and OpenAI Codex without introducing dependencies.
