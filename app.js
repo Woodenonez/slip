@@ -2,6 +2,7 @@
   const sampleMarkdown = `---
 title: Slip Demo
 theme: clean
+size: widescreen
 ---
 
 # Slip
@@ -41,6 +42,30 @@ The preview is designed as a print page first, then scaled for screen reading.
     activeSlide: 0,
     showNotes: false,
     presentationOpen: false,
+    presentationMode: "presenter",
+    presentationStartedAt: 0,
+    presentationTimer: 0,
+    previewKeys: new Map(),
+    overflowSlides: new Set(),
+  };
+
+  const slideSizes = {
+    widescreen: {
+      label: "16:9",
+      width: 1280,
+      height: 720,
+      printWidth: "16in",
+      printHeight: "9in",
+      page: "16in 9in",
+    },
+    a4: {
+      label: "A4",
+      width: 794,
+      height: 1123,
+      printWidth: "210mm",
+      printHeight: "297mm",
+      page: "A4",
+    },
   };
 
   const elements = {
@@ -51,15 +76,21 @@ The preview is designed as a print page first, then scaled for screen reading.
     status: document.getElementById("status"),
     deckTitle: document.getElementById("deck-title"),
     themePicker: document.getElementById("theme-picker"),
+    sizePicker: document.getElementById("size-picker"),
     showNotes: document.getElementById("show-notes"),
     importFile: document.getElementById("import-file"),
     exportMd: document.getElementById("export-md"),
     autoSplit: document.getElementById("auto-split"),
     printPdf: document.getElementById("print-pdf"),
-    present: document.getElementById("present"),
+    presentMenuButton: document.getElementById("present-menu-button"),
+    presentMenuOptions: document.getElementById("present-menu-options"),
+    presentMirror: document.getElementById("present-mirror"),
+    presentSpeaker: document.getElementById("present-speaker"),
     presentation: document.getElementById("presentation"),
     presentationSlide: document.getElementById("presentation-slide"),
+    presentationNext: document.getElementById("presentation-next"),
     presentationCount: document.getElementById("presentation-count"),
+    presentationTimer: document.getElementById("presentation-timer"),
     presentationNotes: document.getElementById("presentation-notes"),
     exitPresent: document.getElementById("exit-present"),
   };
@@ -78,6 +109,7 @@ The preview is designed as a print page first, then scaled for screen reading.
         source,
         content,
         notes,
+        hash: hashString(`${content}\n???\n${notes}`),
         title: extractTitle(content) || `Slide ${index + 1}`,
       };
     });
@@ -86,10 +118,17 @@ The preview is designed as a print page first, then scaled for screen reading.
       meta: {
         title: frontmatter.meta.title || "Untitled deck",
         theme: frontmatter.meta.theme || "clean",
+        size: normalizeSlideSize(frontmatter.meta.size),
       },
-      slides: slides.length ? slides : [{ id: "slide-1", index: 0, source: "", content: "", notes: "", title: "Slide 1" }],
+      slides: slides.length ? slides : [{ id: "slide-1", index: 0, source: "", content: "", notes: "", hash: hashString(""), title: "Slide 1" }],
       warnings: frontmatter.warnings,
     };
+  }
+
+  function normalizeSlideSize(size) {
+    if (size === "a4" || size === "A4") return "a4";
+    if (size === "16:9" || size === "widescreen") return "widescreen";
+    return "widescreen";
   }
 
   function parseFrontmatter(markdown) {
@@ -162,7 +201,7 @@ The preview is designed as a print page first, then scaled for screen reading.
 
       if (/^\s*```/.test(line)) {
         if (inCode) {
-          html += `<pre><code data-lang="${escapeHtml(codeLang)}">${escapeHtml(codeBuffer.join("\n"))}</code></pre>`;
+          html += codeBlockHtml(codeLang, codeBuffer.join("\n"));
           inCode = false;
           codeBuffer = [];
           codeLang = "";
@@ -220,11 +259,17 @@ The preview is designed as a print page first, then scaled for screen reading.
     });
 
     if (inCode) {
-      html += `<pre><code data-lang="${escapeHtml(codeLang)}">${escapeHtml(codeBuffer.join("\n"))}</code></pre>`;
+      html += codeBlockHtml(codeLang, codeBuffer.join("\n"));
     }
     flushParagraph();
     flushList();
     return html || "<p></p>";
+  }
+
+  function codeBlockHtml(language, code) {
+    const lang = language.trim();
+    const label = lang ? `<span class="code-lang">${escapeHtml(lang)}</span>` : "";
+    return `<pre>${label}<code data-lang="${escapeHtml(lang)}">${escapeHtml(code)}</code></pre>`;
   }
 
   function inlineMarkdown(text) {
@@ -254,6 +299,14 @@ The preview is designed as a print page first, then scaled for screen reading.
       .replace(/'/g, "&#039;");
   }
 
+  function hashString(value) {
+    let hash = 5381;
+    for (let index = 0; index < value.length; index += 1) {
+      hash = (hash * 33) ^ value.charCodeAt(index);
+    }
+    return (hash >>> 0).toString(36);
+  }
+
   function update() {
     const started = performance.now();
     state.markdown = elements.editor.value;
@@ -281,6 +334,10 @@ The preview is designed as a print page first, then scaled for screen reading.
     const deck = state.deck;
     elements.deckTitle.textContent = deck.meta.title;
     elements.themePicker.value = ["clean", "contrast", "paper"].includes(deck.meta.theme) ? deck.meta.theme : "clean";
+    elements.sizePicker.value = deck.meta.size;
+    setSlideSizeVars(deck.meta.size);
+    updatePrintSize(deck.meta.size);
+    updatePresentationSizeClass(deck.meta.size);
     elements.preview.classList.toggle("show-notes", state.showNotes);
     renderOutline(deck);
     renderPreview(deck);
@@ -293,7 +350,8 @@ The preview is designed as a print page first, then scaled for screen reading.
       const li = document.createElement("li");
       const button = document.createElement("button");
       button.type = "button";
-      button.className = `outline-item${index === state.activeSlide ? " active" : ""}`;
+      button.className = `outline-item${index === state.activeSlide ? " active" : ""}${state.overflowSlides.has(slide.id) ? " has-overflow" : ""}`;
+      button.dataset.slideId = slide.id;
       button.innerHTML = `<span class="outline-index">${index + 1}</span><span>${escapeHtml(slide.title)}</span>`;
       button.addEventListener("click", () => scrollToSlide(index));
       li.appendChild(button);
@@ -303,31 +361,127 @@ The preview is designed as a print page first, then scaled for screen reading.
 
   function renderPreview(deck) {
     const theme = ["clean", "contrast", "paper"].includes(deck.meta.theme) ? deck.meta.theme : "clean";
-    elements.preview.innerHTML = deck.slides.map((slide, index) => {
-      return `<div class="slide-frame" id="frame-${index}" data-slide-index="${index}">
-        <div class="slide-number">Slide ${index + 1}</div>
-        ${slideHtml(slide, theme)}
-        <div class="notes">${escapeHtml(slide.notes || "No speaker notes")}</div>
-      </div>`;
-    }).join("");
+    const size = deck.meta.size;
+    const nextKeys = new Map();
+    const fragment = document.createDocumentFragment();
+
+    deck.slides.forEach((slide, index) => {
+      const key = `${theme}:${size}:${slide.hash}`;
+      nextKeys.set(slide.id, key);
+
+      let frame = elements.preview.querySelector(`[data-slide-id="${slide.id}"]`);
+      if (!frame || state.previewKeys.get(slide.id) !== key) {
+        frame = createSlideFrame(slide, index, theme, size);
+      } else {
+        updateSlideFrameMetadata(frame, slide, index);
+      }
+      fragment.appendChild(frame);
+    });
+
+    elements.preview.replaceChildren(fragment);
+    state.previewKeys = nextKeys;
     scaleSlides();
+    requestAnimationFrame(detectSlideOverflow);
   }
 
-  function slideHtml(slide, theme) {
-    return `<section class="slide theme-${theme}" aria-label="${escapeHtml(slide.title)}">
+  function createSlideFrame(slide, index, theme, size) {
+    const frame = document.createElement("div");
+    frame.className = "slide-frame";
+    frame.id = `frame-${index}`;
+    frame.dataset.slideId = slide.id;
+    frame.dataset.slideIndex = String(index);
+    frame.innerHTML = `<div class="slide-number">Slide ${index + 1}</div>
+      ${slideHtml(slide, theme, size)}
+      <div class="overflow-badge" aria-hidden="true">May clip in PDF</div>
+      <div class="notes">${escapeHtml(slide.notes || "No speaker notes")}</div>`;
+    return frame;
+  }
+
+  function updateSlideFrameMetadata(frame, slide, index) {
+    frame.id = `frame-${index}`;
+    frame.dataset.slideIndex = String(index);
+    const slideNumber = frame.querySelector(".slide-number");
+    if (slideNumber) slideNumber.textContent = `Slide ${index + 1}`;
+    const slideElement = frame.querySelector(".slide");
+    if (slideElement) slideElement.setAttribute("aria-label", slide.title);
+  }
+
+  function slideHtml(slide, theme, size) {
+    return `<section class="slide theme-${theme} size-${size}" aria-label="${escapeHtml(slide.title)}">
       <div class="slide-inner">${renderMarkdown(slide.content)}</div>
     </section>`;
   }
 
   function scaleSlides() {
+    const size = slideSizes[state.deck?.meta.size] || slideSizes.widescreen;
     const frames = elements.preview.querySelectorAll(".slide-frame");
     const available = Math.max(320, elements.preview.clientWidth - 36);
-    const scale = Math.min(1, available / 1280);
+    const scale = Math.min(1, available / size.width);
     frames.forEach((frame) => {
       const slide = frame.querySelector(".slide");
       slide.style.transform = `scale(${scale})`;
-      slide.style.marginBottom = `${720 * scale - 720}px`;
+      slide.style.marginBottom = `${size.height * scale - size.height}px`;
     });
+  }
+
+  function setSlideSizeVars(sizeName) {
+    const size = slideSizes[sizeName] || slideSizes.widescreen;
+    document.documentElement.style.setProperty("--slide-width", `${size.width}px`);
+    document.documentElement.style.setProperty("--slide-height", `${size.height}px`);
+    document.documentElement.style.setProperty("--print-slide-width", size.printWidth);
+    document.documentElement.style.setProperty("--print-slide-height", size.printHeight);
+  }
+
+  function updatePrintSize(sizeName) {
+    const size = slideSizes[sizeName] || slideSizes.widescreen;
+    let printStyle = document.getElementById("print-page-size");
+    if (!printStyle) {
+      printStyle = document.createElement("style");
+      printStyle.id = "print-page-size";
+      document.head.appendChild(printStyle);
+    }
+    printStyle.textContent = `@page { size: ${size.page}; margin: 0; }`;
+  }
+
+  function detectSlideOverflow() {
+    const nextOverflowSlides = new Set();
+    const frames = elements.preview.querySelectorAll(":scope > .slide-frame");
+
+    frames.forEach((frame) => {
+      const slideInner = frame.querySelector(".slide-inner");
+      if (!slideInner) return;
+      const hasOverflow = slideInner.scrollHeight > slideInner.clientHeight + 1 || slideInner.scrollWidth > slideInner.clientWidth + 1;
+      frame.classList.toggle("has-overflow", hasOverflow);
+      if (hasOverflow) nextOverflowSlides.add(frame.dataset.slideId);
+    });
+
+    state.overflowSlides = nextOverflowSlides;
+    markOutlineOverflow();
+    updateOverflowStatus();
+  }
+
+  function markOutlineOverflow() {
+    elements.outline.querySelectorAll(".outline-item").forEach((item) => {
+      item.classList.toggle("has-overflow", state.overflowSlides.has(item.dataset.slideId));
+    });
+  }
+
+  function updateOverflowStatus() {
+    if (!state.overflowSlides.size) return;
+    const overflowIndexes = state.deck.slides
+      .map((slide, index) => state.overflowSlides.has(slide.id) ? index + 1 : null)
+      .filter(Boolean);
+
+    if (overflowIndexes.length) {
+      elements.status.textContent = `${formatSlideList(overflowIndexes)} may clip in print/PDF.`;
+      elements.status.classList.add("warning");
+    }
+  }
+
+  function formatSlideList(slideNumbers) {
+    if (slideNumbers.length === 1) return `Slide ${slideNumbers[0]}`;
+    if (slideNumbers.length <= 4) return `Slides ${slideNumbers.join(", ")}`;
+    return `Slides ${slideNumbers.slice(0, 4).join(", ")} and ${slideNumbers.length - 4} more`;
   }
 
   function scrollToSlide(index) {
@@ -351,21 +505,30 @@ The preview is designed as a print page first, then scaled for screen reading.
   }
 
   function setTheme(theme) {
+    setFrontmatterValue("theme", theme);
+  }
+
+  function setSize(size) {
+    setFrontmatterValue("size", size);
+  }
+
+  function setFrontmatterValue(key, value) {
     const markdown = elements.editor.value;
     if (markdown.startsWith("---\n")) {
       const end = markdown.indexOf("\n---", 4);
       if (end !== -1) {
         const frontmatter = markdown.slice(4, end);
         const body = markdown.slice(end);
-        const nextFrontmatter = /^theme:/m.test(frontmatter)
-          ? frontmatter.replace(/^theme:\s*.*$/m, `theme: ${theme}`)
-          : `${frontmatter.trim()}\ntheme: ${theme}\n`;
+        const keyPattern = new RegExp(`^${key}:\\s*.*$`, "m");
+        const nextFrontmatter = keyPattern.test(frontmatter)
+          ? frontmatter.replace(keyPattern, `${key}: ${value}`)
+          : `${frontmatter.trim()}\n${key}: ${value}\n`;
         elements.editor.value = `---\n${nextFrontmatter.trim()}\n${body}`;
         update();
         return;
       }
     }
-    elements.editor.value = `---\ntheme: ${theme}\n---\n\n${markdown}`;
+    elements.editor.value = `---\n${key}: ${value}\n---\n\n${markdown}`;
     update();
   }
 
@@ -398,15 +561,27 @@ The preview is designed as a print page first, then scaled for screen reading.
     update();
   }
 
-  function openPresentation() {
+  function openPresentation(mode) {
     state.presentationOpen = true;
+    state.presentationMode = mode;
+    state.presentationStartedAt = Date.now();
+    elements.presentation.classList.toggle("presentation-mirror", mode === "mirror");
+    elements.presentation.classList.toggle("presentation-presenter", mode === "presenter");
+    updatePresentationSizeClass(state.deck.meta.size);
     elements.presentation.hidden = false;
     elements.app.setAttribute("aria-hidden", "true");
+    startPresentationTimer();
     renderPresentation();
+  }
+
+  function updatePresentationSizeClass(size) {
+    elements.presentation.classList.toggle("presentation-size-a4", size === "a4");
+    elements.presentation.classList.toggle("presentation-size-widescreen", size !== "a4");
   }
 
   function closePresentation() {
     state.presentationOpen = false;
+    stopPresentationTimer();
     elements.presentation.hidden = true;
     elements.app.removeAttribute("aria-hidden");
   }
@@ -414,10 +589,38 @@ The preview is designed as a print page first, then scaled for screen reading.
   function renderPresentation() {
     const deck = state.deck;
     const slide = deck.slides[state.activeSlide] || deck.slides[0];
+    const nextSlide = deck.slides[state.activeSlide + 1];
     const theme = ["clean", "contrast", "paper"].includes(deck.meta.theme) ? deck.meta.theme : "clean";
-    elements.presentationSlide.innerHTML = slideHtml(slide, theme);
+    elements.presentationSlide.innerHTML = slideHtml(slide, theme, deck.meta.size);
+    elements.presentationNext.innerHTML = nextSlide
+      ? slideHtml(nextSlide, theme, deck.meta.size)
+      : '<div class="presentation-end">End of deck</div>';
     elements.presentationCount.textContent = `${state.activeSlide + 1} / ${deck.slides.length}`;
-    elements.presentationNotes.textContent = slide.notes || "";
+    elements.presentationNotes.textContent = slide.notes || "No speaker notes.";
+    updatePresentationTimer();
+  }
+
+  function startPresentationTimer() {
+    stopPresentationTimer();
+    state.presentationTimer = window.setInterval(updatePresentationTimer, 1000);
+  }
+
+  function stopPresentationTimer() {
+    if (state.presentationTimer) {
+      window.clearInterval(state.presentationTimer);
+      state.presentationTimer = 0;
+    }
+  }
+
+  function updatePresentationTimer() {
+    if (!state.presentationStartedAt) {
+      elements.presentationTimer.textContent = "00:00";
+      return;
+    }
+    const elapsed = Math.max(0, Math.floor((Date.now() - state.presentationStartedAt) / 1000));
+    const minutes = String(Math.floor(elapsed / 60)).padStart(2, "0");
+    const seconds = String(elapsed % 60).padStart(2, "0");
+    elements.presentationTimer.textContent = `${minutes}:${seconds}`;
   }
 
   function movePresentation(delta) {
@@ -476,9 +679,24 @@ The preview is designed as a print page first, then scaled for screen reading.
   elements.exportMd.addEventListener("click", exportMarkdown);
   elements.autoSplit.addEventListener("click", autoSplitMarkdown);
   elements.printPdf.addEventListener("click", () => window.print());
-  elements.present.addEventListener("click", openPresentation);
+  elements.presentMenuButton.addEventListener("click", () => {
+    const isOpen = !elements.presentMenuOptions.hidden;
+    elements.presentMenuOptions.hidden = isOpen;
+    elements.presentMenuButton.setAttribute("aria-expanded", String(!isOpen));
+  });
+  elements.presentMirror.addEventListener("click", () => {
+    elements.presentMenuOptions.hidden = true;
+    elements.presentMenuButton.setAttribute("aria-expanded", "false");
+    openPresentation("mirror");
+  });
+  elements.presentSpeaker.addEventListener("click", () => {
+    elements.presentMenuOptions.hidden = true;
+    elements.presentMenuButton.setAttribute("aria-expanded", "false");
+    openPresentation("presenter");
+  });
   elements.exitPresent.addEventListener("click", closePresentation);
   elements.themePicker.addEventListener("change", (event) => setTheme(event.target.value));
+  elements.sizePicker.addEventListener("change", (event) => setSize(event.target.value));
   elements.showNotes.addEventListener("change", (event) => {
     state.showNotes = event.target.checked;
     render();
@@ -494,7 +712,16 @@ The preview is designed as a print page first, then scaled for screen reading.
       renderOutline(state.deck);
     }
   });
-  window.addEventListener("resize", scaleSlides);
+  window.addEventListener("resize", () => {
+    scaleSlides();
+    requestAnimationFrame(detectSlideOverflow);
+  });
+  window.addEventListener("click", (event) => {
+    if (!event.target.closest(".present-menu")) {
+      elements.presentMenuOptions.hidden = true;
+      elements.presentMenuButton.setAttribute("aria-expanded", "false");
+    }
+  });
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && state.presentationOpen) closePresentation();
     if (event.key === "ArrowRight" || event.key === "PageDown") movePresentation(1);

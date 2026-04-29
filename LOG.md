@@ -1,6 +1,6 @@
 # Project Log
 
-## 2026-04-29
+## 2026-04-29 (1)
 
 - Reviewed `/plan/plan.md` and version plans `v1.md` through `v4.md`.
 - Compared the plan against similar products and frameworks: Marp, Slidev, reveal.js/HedgeDoc, DeckDeckGo, Pitch, Beautiful.ai, and Gamma.
@@ -13,6 +13,21 @@
 - Verified JavaScript syntax with `node --check app.js`.
 - Clarified dependency status: `node` was used only as a development verification tool, not as an app runtime or build dependency.
 - Prepared the current project snapshot for the initial git commit.
+
+## 2026-04-29 (2)
+
+- Continued V1 with performance hardening instead of adding new packages.
+- Deferred Mermaid diagram support to a later optional V1.5 milestone.
+- Added stable per-slide hashes to the parsed slide model.
+- Updated preview rendering to preserve unchanged slide frames and replace only slides whose content, notes, or theme changed.
+- Expanded Presenter Mode with a current slide, next-slide preview, speaker notes, elapsed timer, and navigation hints.
+- Split presentation into selectable Mirror Mode and Presenter Mode from the Present dropdown.
+- Added dependency-free slide overflow detection with preview badges, outline highlighting, and status warnings for content that may clip in print/PDF.
+- Fixed overflow detection to check only editor preview slides and report all overflowing slide numbers, not just the first.
+- Improved fenced code block rendering with dependency-free language labels and safer preformatted styling.
+- Added `size` frontmatter support with UI selection for `widescreen` and `a4`, including preview dimensions and print/PDF page sizing.
+- Updated `README.md` to document partial preview rendering.
+- Dependencies introduced: none.
 
 ## Dependencies
 

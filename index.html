@@ -21,7 +21,13 @@
           <button id="export-md" type="button">Export MD</button>
           <button id="auto-split" type="button">Auto Split</button>
           <button id="print-pdf" type="button">Print / PDF</button>
-          <button id="present" type="button">Present</button>
+          <div class="present-menu">
+            <button id="present-menu-button" type="button" aria-haspopup="true" aria-expanded="false">Present</button>
+            <div id="present-menu-options" class="present-menu-options" hidden>
+              <button id="present-mirror" type="button">Mirror Mode</button>
+              <button id="present-speaker" type="button">Presenter Mode</button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -38,6 +44,10 @@
               <option value="clean">Clean</option>
               <option value="contrast">Contrast</option>
               <option value="paper">Paper</option>
+            </select>
+            <select id="size-picker" aria-label="Slide size">
+              <option value="widescreen">16:9</option>
+              <option value="a4">A4</option>
             </select>
           </div>
           <textarea id="editor" spellcheck="false"></textarea>
@@ -57,12 +67,28 @@
       </main>
     </div>
 
-    <div id="presentation" class="presentation" hidden>
+    <div id="presentation" class="presentation presentation-presenter" hidden>
       <button id="exit-present" class="exit-present" type="button" aria-label="Exit presentation">Exit</button>
-      <article id="presentation-slide" class="presentation-slide"></article>
+      <div class="presentation-stage">
+        <article id="presentation-slide" class="presentation-slide"></article>
+        <aside class="presentation-side" aria-label="Presenter details">
+          <div class="presentation-meta">
+            <span id="presentation-count"></span>
+            <span id="presentation-timer">00:00</span>
+          </div>
+          <section class="presentation-next-panel">
+            <h2>Next</h2>
+            <div id="presentation-next" class="presentation-next"></div>
+          </section>
+          <section class="presentation-notes-panel">
+            <h2>Notes</h2>
+            <div id="presentation-notes"></div>
+          </section>
+        </aside>
+      </div>
       <footer class="presentation-footer">
-        <span id="presentation-count"></span>
-        <span id="presentation-notes"></span>
+        <span>Left / Right to navigate</span>
+        <span>Esc to exit</span>
       </footer>
     </div>
 

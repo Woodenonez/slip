@@ -9,6 +9,8 @@
   --danger: #9d2a2a;
   --slide-width: 1280px;
   --slide-height: 720px;
+  --print-slide-width: 16in;
+  --print-slide-height: 9in;
   color-scheme: light;
 }
 
@@ -94,6 +96,34 @@ button:hover,
   gap: 8px;
 }
 
+.present-menu {
+  position: relative;
+}
+
+.present-menu-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  min-width: 170px;
+  padding: 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(20, 31, 42, 0.16);
+}
+
+.present-menu-options button {
+  width: 100%;
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+}
+
+.present-menu-options button:hover {
+  background: #e5f2ef;
+}
+
 .file-button input {
   display: none;
 }
@@ -157,6 +187,10 @@ button:hover,
   color: var(--accent-strong);
 }
 
+.outline-item.has-overflow {
+  color: var(--danger);
+}
+
 .outline-index {
   color: var(--muted);
   min-width: 24px;
@@ -214,6 +248,7 @@ button:hover,
 }
 
 .slide-frame {
+  position: relative;
   display: grid;
   gap: 8px;
 }
@@ -240,6 +275,10 @@ button:hover,
   background: var(--theme-bg);
   color: var(--theme-text);
   font: 34px/1.28 Georgia, "Times New Roman", serif;
+}
+
+.slide.size-a4 .slide-inner {
+  padding: 64px 58px;
 }
 
 .slide.theme-clean {
@@ -302,11 +341,13 @@ button:hover,
 }
 
 .slide-inner pre {
+  position: relative;
   padding: 20px;
   border-radius: 6px;
   background: var(--theme-code-bg);
   overflow: auto;
   font: 22px/1.45 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  white-space: pre;
 }
 
 .slide-inner code {
@@ -317,8 +358,43 @@ button:hover,
 }
 
 .slide-inner pre code {
+  display: block;
   padding: 0;
   background: transparent;
+}
+
+.code-lang {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(20, 31, 42, 0.12);
+  color: inherit;
+  font: 12px/1.4 Inter, ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+}
+
+.overflow-badge {
+  display: none;
+  position: absolute;
+  top: 30px;
+  right: 12px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #fff4e5;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(20, 31, 42, 0.14);
+}
+
+.slide-frame.has-overflow .slide {
+  border-color: var(--danger);
+}
+
+.slide-frame.has-overflow .overflow-badge {
+  display: block;
 }
 
 .notes {
@@ -340,7 +416,7 @@ button:hover,
   z-index: 20;
   display: grid;
   grid-template-rows: 1fr 52px;
-  place-items: center;
+  place-items: stretch;
   background: #05070a;
 }
 
@@ -348,9 +424,42 @@ button:hover,
   display: none;
 }
 
+.presentation-mirror .presentation-stage {
+  grid-template-columns: 1fr;
+  padding: 0;
+}
+
+.presentation-mirror .presentation-slide {
+  width: min(100vw, calc((100vh - 52px) * 16 / 9));
+  height: min(calc(100vh - 52px), calc(100vw * 9 / 16));
+}
+
+.presentation-mirror.presentation-size-a4 .presentation-slide {
+  width: min(100vw, calc((100vh - 52px) * 794 / 1123));
+  height: min(calc(100vh - 52px), calc(100vw * 1123 / 794));
+}
+
+.presentation-mirror .presentation-side {
+  display: none;
+}
+
+.presentation-stage {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+  padding: 18px;
+}
+
 .presentation-slide {
-  width: min(100vw, calc(100vh * 16 / 9));
-  height: min(100vh, calc(100vw * 9 / 16));
+  place-self: center;
+  width: min(calc(100vw - 420px), calc((100vh - 88px) * 16 / 9));
+  height: min(calc(100vh - 88px), calc((100vw - 420px) * 9 / 16));
+}
+
+.presentation-size-a4 .presentation-slide {
+  width: min(calc(100vw - 420px), calc((100vh - 88px) * 794 / 1123));
+  height: min(calc(100vh - 88px), calc((100vw - 420px) * 1123 / 794));
 }
 
 .presentation-slide .slide {
@@ -363,6 +472,94 @@ button:hover,
 
 .presentation-slide .slide-inner {
   font-size: clamp(20px, 2.6vw, 34px);
+}
+
+.presentation-side {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+  color: #d8dde3;
+}
+
+.presentation-meta,
+.presentation-next-panel,
+.presentation-notes-panel {
+  border: 1px solid #252c37;
+  border-radius: 8px;
+  background: #0b0f15;
+}
+
+.presentation-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.presentation-next-panel,
+.presentation-notes-panel {
+  overflow: hidden;
+}
+
+.presentation-next-panel h2,
+.presentation-notes-panel h2 {
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid #252c37;
+  color: #95a0af;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.presentation-next {
+  padding: 12px;
+}
+
+.presentation-next .slide {
+  width: 320px;
+  height: 180px;
+  transform: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.presentation-next .slide-inner {
+  padding: 18px 22px;
+  font-size: 10px;
+}
+
+.presentation-next .slide-inner h1 {
+  font-size: 22px;
+}
+
+.presentation-next .slide-inner h2 {
+  font-size: 18px;
+}
+
+.presentation-next .slide-inner h3 {
+  font-size: 15px;
+}
+
+.presentation-end {
+  display: grid;
+  place-items: center;
+  width: 320px;
+  height: 180px;
+  border: 1px dashed #3b4554;
+  color: #95a0af;
+}
+
+.presentation-notes-panel div {
+  max-height: 100%;
+  padding: 14px;
+  overflow: auto;
+  color: #f4f7fb;
+  font-size: 18px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .presentation-footer {
@@ -385,9 +582,35 @@ button:hover,
 .exit-present {
   position: fixed;
   top: 12px;
-  right: 12px;
+  right: 18px;
   z-index: 21;
   opacity: 0.8;
+}
+
+@media (max-width: 1180px) {
+  .presentation-stage {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .presentation-mirror .presentation-stage {
+    grid-template-rows: 1fr;
+  }
+
+  .presentation-slide {
+    width: min(calc(100vw - 36px), calc((100vh - 320px) * 16 / 9));
+    height: min(calc(100vh - 320px), calc((100vw - 36px) * 9 / 16));
+  }
+
+  .presentation-side {
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto;
+  }
+
+  .presentation-next .slide {
+    width: 220px;
+    height: 124px;
+  }
 }
 
 @media (max-width: 1180px) {
@@ -420,6 +643,7 @@ button:hover,
   .editor-pane,
   .pane-header,
   .slide-number,
+  .overflow-badge,
   .notes,
   .presentation {
     display: none !important;
@@ -439,8 +663,8 @@ button:hover,
   }
 
   .slide {
-    width: 16in;
-    height: 9in;
+    width: var(--print-slide-width);
+    height: var(--print-slide-height);
     transform: none !important;
     border: 0;
     box-shadow: none;
