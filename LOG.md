@@ -85,3 +85,10 @@
 - External packages introduced: `@codemirror/state`, `@codemirror/view`, `@codemirror/commands`, `@codemirror/lang-markdown`, `@codemirror/language`, `@codemirror/search`, `@codemirror/autocomplete`, `@lezer/highlight`, `highlight.js`, `katex`, `vite`, and `@playwright/test`.
 - Verification tools used: `node --check app.js`, `npm run build`, `npm run test:v1`, `npm run release:check`.
 - Browser APIs used: `localStorage`, `FileReader`, `Blob`, `URL.createObjectURL`, drag-and-drop events, and `window.print()`.
+
+## 2026-04-29 (7)
+
+- Reviewed dependency license metadata before publishing.
+- Found project metadata still declared `ISC`; changed root package metadata to `MIT`.
+- Added a root MIT `LICENSE` file and documented the license in `README.md`.
+- Compatibility notes: runtime dependencies are MIT or BSD-style; development/build dependencies include Apache-2.0 and MPL-2.0 packages that do not block publishing Slip under MIT when their notices are preserved.
