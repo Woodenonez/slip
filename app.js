@@ -1,4 +1,69 @@
-(function () {
+import { EditorState } from "@codemirror/state";
+import {
+  EditorView,
+  crosshairCursor,
+  drawSelection,
+  dropCursor,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  highlightSpecialChars,
+  keymap,
+  lineNumbers,
+  rectangularSelection,
+} from "@codemirror/view";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+} from "@codemirror/commands";
+import {
+  bracketMatching,
+  defaultHighlightStyle,
+  foldGutter,
+  foldKeymap,
+  indentOnInput,
+  syntaxHighlighting,
+} from "@codemirror/language";
+import { markdown } from "@codemirror/lang-markdown";
+import {
+  autocompletion,
+  closeBrackets,
+  closeBracketsKeymap,
+  completionKeymap,
+} from "@codemirror/autocomplete";
+import {
+  highlightSelectionMatches,
+  searchKeymap,
+} from "@codemirror/search";
+import katex from "katex";
+import "katex/dist/katex.min.css";
+import hljs from "highlight.js/lib/core";
+import bash from "highlight.js/lib/languages/bash";
+import css from "highlight.js/lib/languages/css";
+import javascript from "highlight.js/lib/languages/javascript";
+import json from "highlight.js/lib/languages/json";
+import markdownLang from "highlight.js/lib/languages/markdown";
+import python from "highlight.js/lib/languages/python";
+import typescript from "highlight.js/lib/languages/typescript";
+import xml from "highlight.js/lib/languages/xml";
+import "highlight.js/styles/github.css";
+
+hljs.registerLanguage("bash", bash);
+hljs.registerLanguage("sh", bash);
+hljs.registerLanguage("css", css);
+hljs.registerLanguage("html", xml);
+hljs.registerLanguage("javascript", javascript);
+hljs.registerLanguage("js", javascript);
+hljs.registerLanguage("json", json);
+hljs.registerLanguage("markdown", markdownLang);
+hljs.registerLanguage("md", markdownLang);
+hljs.registerLanguage("python", python);
+hljs.registerLanguage("py", python);
+hljs.registerLanguage("typescript", typescript);
+hljs.registerLanguage("ts", typescript);
+hljs.registerLanguage("xml", xml);
+
   const sampleMarkdown = `---
 title: Slip Demo
 theme: clean
@@ -26,6 +91,12 @@ Speaker notes are written after three question marks.
 const deck = parseSlides(markdown);
 render(deck);
 \`\`\`
+
+Inline math works: $E = mc^2$
+
+$$
+\\int_0^1 x^2\\,dx = \\frac{1}{3}
+$$
 
 ---
 
@@ -94,6 +165,60 @@ The preview is designed as a print page first, then scaled for screen reading.
     presentationNotes: document.getElementById("presentation-notes"),
     exitPresent: document.getElementById("exit-present"),
   };
+
+  let updateTimer = 0;
+  const editorView = new EditorView({
+    parent: elements.editor,
+    state: EditorState.create({
+      doc: state.markdown,
+      extensions: [
+        lineNumbers(),
+        highlightActiveLineGutter(),
+        highlightSpecialChars(),
+        history(),
+        foldGutter(),
+        drawSelection(),
+        dropCursor(),
+        EditorState.allowMultipleSelections.of(true),
+        indentOnInput(),
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        bracketMatching(),
+        closeBrackets(),
+        autocompletion(),
+        rectangularSelection(),
+        crosshairCursor(),
+        highlightActiveLine(),
+        highlightSelectionMatches(),
+        markdown(),
+        keymap.of([
+          indentWithTab,
+          ...closeBracketsKeymap,
+          ...defaultKeymap,
+          ...searchKeymap,
+          ...historyKeymap,
+          ...foldKeymap,
+          ...completionKeymap,
+        ]),
+        EditorView.lineWrapping,
+        EditorView.updateListener.of((viewUpdate) => {
+          if (!viewUpdate.docChanged) return;
+          clearTimeout(updateTimer);
+          updateTimer = window.setTimeout(update, 80);
+        }),
+      ],
+    }),
+  });
+
+  function getEditorValue() {
+    return editorView.state.doc.toString();
+  }
+
+  function setEditorValue(value) {
+    editorView.dispatch({
+      changes: { from: 0, to: editorView.state.doc.length, insert: value },
+    });
+    update();
+  }
 
   function parseDeck(markdown) {
     const normalized = markdown.replace(/\r\n?/g, "\n");
@@ -181,7 +306,9 @@ The preview is designed as a print page first, then scaled for screen reading.
     let paragraph = [];
     let list = null;
     let inCode = false;
+    let inMath = false;
     let codeBuffer = [];
+    let mathBuffer = [];
     let codeLang = "";
 
     function flushParagraph() {
@@ -200,6 +327,10 @@ The preview is designed as a print page first, then scaled for screen reading.
       const line = rawLine.replace(/\t/g, "  ");
 
       if (/^\s*```/.test(line)) {
+        if (inMath) {
+          mathBuffer.push(rawLine);
+          return;
+        }
         if (inCode) {
           html += codeBlockHtml(codeLang, codeBuffer.join("\n"));
           inCode = false;
@@ -214,8 +345,30 @@ The preview is designed as a print page first, then scaled for screen reading.
         return;
       }
 
+      if (/^\s*\$\$\s*$/.test(line)) {
+        if (inCode) {
+          codeBuffer.push(rawLine);
+          return;
+        }
+        if (inMath) {
+          html += mathBlockHtml(mathBuffer.join("\n"));
+          inMath = false;
+          mathBuffer = [];
+        } else {
+          flushParagraph();
+          flushList();
+          inMath = true;
+        }
+        return;
+      }
+
       if (inCode) {
         codeBuffer.push(rawLine);
+        return;
+      }
+
+      if (inMath) {
+        mathBuffer.push(rawLine);
         return;
       }
 
@@ -261,6 +414,9 @@ The preview is designed as a print page first, then scaled for screen reading.
     if (inCode) {
       html += codeBlockHtml(codeLang, codeBuffer.join("\n"));
     }
+    if (inMath) {
+      html += mathBlockHtml(mathBuffer.join("\n"));
+    }
     flushParagraph();
     flushList();
     return html || "<p></p>";
@@ -269,17 +425,65 @@ The preview is designed as a print page first, then scaled for screen reading.
   function codeBlockHtml(language, code) {
     const lang = language.trim();
     const label = lang ? `<span class="code-lang">${escapeHtml(lang)}</span>` : "";
-    return `<pre>${label}<code data-lang="${escapeHtml(lang)}">${escapeHtml(code)}</code></pre>`;
+    const highlighted = highlightCode(lang, code);
+    return `<pre>${label}<code class="hljs" data-lang="${escapeHtml(lang)}">${highlighted}</code></pre>`;
+  }
+
+  function highlightCode(language, code) {
+    const normalizedLanguage = language.toLowerCase();
+    if (!normalizedLanguage || !hljs.getLanguage(normalizedLanguage)) {
+      return escapeHtml(code);
+    }
+    try {
+      return hljs.highlight(code, { language: normalizedLanguage, ignoreIllegals: true }).value;
+    } catch (_error) {
+      return escapeHtml(code);
+    }
+  }
+
+  function mathBlockHtml(source) {
+    return `<div class="math-block">${renderMath(source, true)}</div>`;
   }
 
   function inlineMarkdown(text) {
+    const codeSpans = [];
     let output = escapeHtml(text);
+    output = output.replace(/`([^`]+)`/g, (_match, code) => {
+      const token = `@@CODE${codeSpans.length}@@`;
+      codeSpans.push(`<code>${code}</code>`);
+      return token;
+    });
     output = output.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2">');
     output = output.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
     output = output.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     output = output.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-    output = output.replace(/`([^`]+)`/g, "<code>$1</code>");
+    output = output.replace(/(^|[^\\])\$([^$\n]+?)\$/g, (_match, prefix, source) => `${prefix}${renderMath(unescapeHtml(source), false)}`);
+    codeSpans.forEach((code, index) => {
+      output = output.replace(`@@CODE${index}@@`, code);
+    });
     return output;
+  }
+
+  function renderMath(source, displayMode) {
+    try {
+      return katex.renderToString(source.trim(), {
+        displayMode,
+        throwOnError: false,
+        strict: "warn",
+        trust: false,
+      });
+    } catch (error) {
+      return `<code class="math-error">${escapeHtml(source)}</code>`;
+    }
+  }
+
+  function unescapeHtml(value) {
+    return String(value)
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&amp;/g, "&");
   }
 
   function stripMarkdown(text) {
@@ -309,7 +513,7 @@ The preview is designed as a print page first, then scaled for screen reading.
 
   function update() {
     const started = performance.now();
-    state.markdown = elements.editor.value;
+    state.markdown = getEditorValue();
     state.deck = parseDeck(state.markdown);
     localStorage.setItem("slip.markdown", state.markdown);
     render();
@@ -513,7 +717,7 @@ The preview is designed as a print page first, then scaled for screen reading.
   }
 
   function setFrontmatterValue(key, value) {
-    const markdown = elements.editor.value;
+    const markdown = getEditorValue();
     if (markdown.startsWith("---\n")) {
       const end = markdown.indexOf("\n---", 4);
       if (end !== -1) {
@@ -523,17 +727,15 @@ The preview is designed as a print page first, then scaled for screen reading.
         const nextFrontmatter = keyPattern.test(frontmatter)
           ? frontmatter.replace(keyPattern, `${key}: ${value}`)
           : `${frontmatter.trim()}\n${key}: ${value}\n`;
-        elements.editor.value = `---\n${nextFrontmatter.trim()}\n${body}`;
-        update();
+        setEditorValue(`---\n${nextFrontmatter.trim()}\n${body}`);
         return;
       }
     }
-    elements.editor.value = `---\n${key}: ${value}\n---\n\n${markdown}`;
-    update();
+    setEditorValue(`---\n${key}: ${value}\n---\n\n${markdown}`);
   }
 
   function autoSplitMarkdown() {
-    const markdown = elements.editor.value;
+    const markdown = getEditorValue();
     const parsed = parseDeck(markdown);
     if (parsed.slides.length > 1) {
       elements.status.textContent = "Auto Split skipped: deck already contains slide separators.";
@@ -557,8 +759,7 @@ The preview is designed as a print page first, then scaled for screen reading.
       elements.status.textContent = "Auto Split needs at least two top-level headings.";
       return;
     }
-    elements.editor.value = `${frontmatter}${frontmatter ? "\n\n" : ""}${sections.join("\n\n---\n\n")}`;
-    update();
+    setEditorValue(`${frontmatter}${frontmatter ? "\n\n" : ""}${sections.join("\n\n---\n\n")}`);
   }
 
   function openPresentation(mode) {
@@ -633,18 +834,19 @@ The preview is designed as a print page first, then scaled for screen reading.
   function importFile(file) {
     const reader = new FileReader();
     reader.onload = () => {
-      elements.editor.value = String(reader.result || "");
-      update();
+      setEditorValue(String(reader.result || ""));
     };
     reader.readAsText(file);
   }
 
   function insertAtCursor(text) {
-    const editor = elements.editor;
-    const start = editor.selectionStart;
-    const end = editor.selectionEnd;
-    editor.value = `${editor.value.slice(0, start)}${text}${editor.value.slice(end)}`;
-    editor.selectionStart = editor.selectionEnd = start + text.length;
+    const selection = editorView.state.selection.main;
+    editorView.dispatch({
+      changes: { from: selection.from, to: selection.to, insert: text },
+      selection: { anchor: selection.from + text.length },
+      scrollIntoView: true,
+    });
+    editorView.focus();
     update();
   }
 
@@ -663,12 +865,6 @@ The preview is designed as a print page first, then scaled for screen reading.
     reader.readAsDataURL(file);
   }
 
-  let updateTimer = 0;
-  elements.editor.value = state.markdown;
-  elements.editor.addEventListener("input", () => {
-    clearTimeout(updateTimer);
-    updateTimer = setTimeout(update, 80);
-  });
   elements.editor.addEventListener("drop", handleDrop);
   elements.editor.addEventListener("dragover", (event) => event.preventDefault());
   elements.importFile.addEventListener("change", (event) => {
@@ -729,4 +925,3 @@ The preview is designed as a print page first, then scaled for screen reading.
   });
 
   update();
-})();

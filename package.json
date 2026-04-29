@@ -1,0 +1,28 @@
+{
+  "name": "slip",
+  "version": "1.0.0",
+  "description": "Slip is a browser-native Markdown slide editor focused on single-file authoring and reliable print/PDF output.",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "check": "node --check app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.1",
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/search": "^6.7.0",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.41.1",
+    "@lezer/highlight": "^1.2.3",
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.45",
+    "vite": "^8.0.10"
+  }
+}

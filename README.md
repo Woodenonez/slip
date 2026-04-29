@@ -4,20 +4,29 @@ Slip is a browser-native Markdown slide editor focused on single-file authoring 
 
 ## Run
 
-Open `index.html` in a browser.
+Install dependencies and start the dev server:
 
-No build step or package install is required for the current static MVP.
+```bash
+npm install
+npm run dev
+```
+
+Then open the local URL printed by Vite.
+
+The last self-contained no-build baseline is preserved in git commit `044fa79`.
 
 ## Implemented
 
 - Markdown editor backed by a single `.md` document
+- CodeMirror 6 editing surface with Markdown mode, line numbers, undo history, search keybindings, and editor selection behavior
 - Frontmatter parsing for `title` and `theme`
 - Frontmatter parsing for `title`, `theme`, and `size`
 - Slide splitting with `---`, while ignoring separators inside fenced code blocks
 - Speaker notes with `???`
 - Fixed 16:9 slide preview with scoped themes
 - Content overflow warnings for slides that may clip in PDF
-- Fenced code block rendering with language labels
+- Highlighted fenced code blocks with language labels for common languages
+- KaTeX math rendering for inline `$...$` and block `$$...$$` expressions
 - Outline navigation and active slide tracking
 - Partial preview rendering with stable slide hashes
 - Markdown import and export
@@ -26,6 +35,12 @@ No build step or package install is required for the current static MVP.
 - Presenter mode with current slide, next slide, notes, timer, and keyboard navigation
 - Rule-based heading auto-split
 - Drag-and-drop image embedding as data URIs with large-file warnings
+
+## Build
+
+```bash
+npm run build
+```
 
 ## Syntax
 
@@ -51,3 +66,15 @@ Speaker notes
 Themes: `clean`, `contrast`, `paper`.
 
 Slide sizes: `widescreen` or `a4`.
+
+Highlighted code languages: `js`, `ts`, `python`, `bash`, `html`, `css`, `json`, and `markdown`.
+
+Math:
+
+```markdown
+Inline: $E = mc^2$
+
+$$
+\int_0^1 x^2\,dx = \frac{1}{3}
+$$
+```
