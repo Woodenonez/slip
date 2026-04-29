@@ -48,6 +48,15 @@
 - Preserved custom CSS in the Markdown source of truth.
 - Verified custom CSS support with `node --check app.js` and `npm run build`; the existing large bundle warning remains.
 
+## 2026-04-29 (5)
+
+- Committed the custom CSS step as `e32ca55`.
+- Started the next V1 usability step without adding dependencies.
+- Reworked Auto Split into a review-and-accept workflow instead of immediately rewriting the deck.
+- Preserved frontmatter and top-level custom CSS when generating split drafts.
+- Added a deterministic max-content heuristic for oversized heading sections.
+- Verified the Auto Split review workflow with `node --check app.js` and `npm run build`; the existing large bundle warning remains.
+
 ## Dependencies
 
 - Runtime dependencies introduced: CodeMirror 6 packages for the editor, KaTeX for math rendering, highlight.js for code highlighting.

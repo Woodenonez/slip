@@ -303,6 +303,107 @@ button:hover,
   color: var(--muted);
 }
 
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(24, 32, 42, 0.42);
+}
+
+.dialog-backdrop[hidden] {
+  display: none;
+}
+
+.dialog {
+  width: min(620px, 100%);
+  max-height: min(720px, calc(100vh - 48px));
+  display: grid;
+  grid-template-rows: 48px minmax(0, 1fr) 52px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  box-shadow: 0 20px 60px rgba(20, 31, 42, 0.28);
+}
+
+.dialog-header,
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+}
+
+.dialog-header {
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.dialog-header h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.dialog-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.dialog-summary {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+
+.dialog-footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--panel-border);
+}
+
+#auto-split-accept {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.split-review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.split-review-list li {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.split-review-list li:first-child {
+  border-top: 0;
+}
+
+.split-review-index {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.split-review-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.split-review-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .notes-toggle {
   display: inline-flex;
   align-items: center;

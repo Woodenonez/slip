@@ -122,6 +122,7 @@ The preview is designed as a print page first, then scaled for screen reading.
     presentationMode: "presenter",
     presentationStartedAt: 0,
     presentationTimer: 0,
+    autoSplitDraft: null,
     previewKeys: new Map(),
     overflowSlides: new Set(),
   };
@@ -163,6 +164,11 @@ The preview is designed as a print page first, then scaled for screen reading.
     customCssEditor: document.getElementById("custom-css-editor"),
     customCssClose: document.getElementById("custom-css-close"),
     customCssStatus: document.getElementById("custom-css-status"),
+    autoSplitDialog: document.getElementById("auto-split-dialog"),
+    autoSplitSummary: document.getElementById("auto-split-summary"),
+    autoSplitList: document.getElementById("auto-split-list"),
+    autoSplitAccept: document.getElementById("auto-split-accept"),
+    autoSplitCancel: document.getElementById("auto-split-cancel"),
     printPdf: document.getElementById("print-pdf"),
     presentMenuButton: document.getElementById("present-menu-button"),
     presentMenuOptions: document.getElementById("present-menu-options"),
@@ -817,30 +823,112 @@ The preview is designed as a print page first, then scaled for screen reading.
 
   function autoSplitMarkdown() {
     const markdown = getEditorValue();
-    const parsed = parseDeck(markdown);
-    if (parsed.slides.length > 1) {
-      elements.status.textContent = "Auto Split skipped: deck already contains slide separators.";
+    const draft = createAutoSplitDraft(markdown);
+    if (draft.error) {
+      elements.status.textContent = draft.error;
+      elements.status.classList.add("warning");
       return;
     }
+    state.autoSplitDraft = draft;
+    renderAutoSplitDialog(draft);
+  }
 
-    const frontmatter = markdown.startsWith("---\n") ? markdown.slice(0, markdown.indexOf("\n---", 4) + 4) : "";
-    const body = frontmatter ? markdown.slice(frontmatter.length).trim() : markdown.trim();
+  function createAutoSplitDraft(markdown) {
+    const parsed = parseDeck(markdown);
+    if (parsed.slides.length > 1) {
+      return { error: "Auto Split skipped: deck already contains slide separators." };
+    }
+
+    const parts = splitFrontmatterBlock(markdown);
+    const customCss = extractCustomCss(parts.body);
+    const sections = splitMarkdownSections(customCss.body.trim());
+    if (sections.length <= 1) {
+      return { error: "Auto Split needs at least two top-level headings." };
+    }
+
+    const slides = sections.flatMap((section) => splitOversizedSection(section));
+    const styleBlock = customCss.css ? `<style>\n${customCss.css}\n</style>\n\n` : "";
+    const nextMarkdown = `${parts.frontmatter}${styleBlock}${slides.join("\n\n---\n\n")}`;
+    return {
+      markdown: nextMarkdown,
+      slides: slides.map((slide, index) => ({
+        index,
+        title: extractTitle(slide) || `Slide ${index + 1}`,
+        lineCount: slide.split("\n").filter((line) => line.trim()).length,
+      })),
+    };
+  }
+
+  function splitMarkdownSections(markdown) {
     const sections = [];
     let current = [];
-    body.split("\n").forEach((line) => {
-      if (/^#{1,2}\s+/.test(line) && current.length) {
+    markdown.split("\n").forEach((line) => {
+      if (/^#{1,2}\s+/.test(line) && current.some((item) => item.trim())) {
         sections.push(current.join("\n").trim());
         current = [line];
       } else {
         current.push(line);
       }
     });
-    if (current.length) sections.push(current.join("\n").trim());
-    if (sections.length <= 1) {
-      elements.status.textContent = "Auto Split needs at least two top-level headings.";
-      return;
-    }
-    setEditorValue(`${frontmatter}${frontmatter ? "\n\n" : ""}${sections.join("\n\n---\n\n")}`);
+    if (current.some((line) => line.trim())) sections.push(current.join("\n").trim());
+    return sections.filter(Boolean);
+  }
+
+  function splitOversizedSection(section) {
+    const maxContentLines = 12;
+    const lines = section.split("\n");
+    const heading = lines[0]?.match(/^(#{1,2})\s+(.+)$/);
+    const contentLines = heading ? lines.slice(1) : lines;
+    const contentCount = contentLines.filter((line) => line.trim()).length;
+    if (contentCount <= maxContentLines) return [section];
+
+    const chunks = [];
+    let chunk = [];
+    contentLines.forEach((line) => {
+      if (chunk.filter((item) => item.trim()).length >= maxContentLines && !line.trim()) {
+        chunks.push(chunk.join("\n").trim());
+        chunk = [];
+        return;
+      }
+      chunk.push(line);
+      if (chunk.filter((item) => item.trim()).length >= maxContentLines + 3) {
+        chunks.push(chunk.join("\n").trim());
+        chunk = [];
+      }
+    });
+    if (chunk.some((line) => line.trim())) chunks.push(chunk.join("\n").trim());
+
+    if (!heading) return chunks;
+    return chunks.map((chunkBody, index) => {
+      const title = index === 0 ? heading[2] : `${heading[2]} (continued)`;
+      return `${heading[1]} ${title}\n\n${chunkBody}`.trim();
+    });
+  }
+
+  function renderAutoSplitDialog(draft) {
+    elements.autoSplitSummary.textContent = `Auto Split will create ${draft.slides.length} slides. Review the generated outline before accepting.`;
+    elements.autoSplitList.innerHTML = "";
+    draft.slides.forEach((slide) => {
+      const item = document.createElement("li");
+      item.innerHTML = `<span class="split-review-index">${slide.index + 1}</span>
+        <span class="split-review-title">${escapeHtml(slide.title)}</span>
+        <span class="split-review-meta">${slide.lineCount} lines</span>`;
+      elements.autoSplitList.appendChild(item);
+    });
+    elements.autoSplitDialog.hidden = false;
+  }
+
+  function acceptAutoSplit() {
+    if (!state.autoSplitDraft) return;
+    setEditorValue(state.autoSplitDraft.markdown);
+    elements.status.textContent = `Auto Split applied: ${state.autoSplitDraft.slides.length} slides.`;
+    elements.status.classList.remove("warning");
+    closeAutoSplitDialog();
+  }
+
+  function closeAutoSplitDialog() {
+    state.autoSplitDraft = null;
+    elements.autoSplitDialog.hidden = true;
   }
 
   function openPresentation(mode) {
@@ -955,6 +1043,11 @@ The preview is designed as a print page first, then scaled for screen reading.
   });
   elements.exportMd.addEventListener("click", exportMarkdown);
   elements.autoSplit.addEventListener("click", autoSplitMarkdown);
+  elements.autoSplitAccept.addEventListener("click", acceptAutoSplit);
+  elements.autoSplitCancel.addEventListener("click", closeAutoSplitDialog);
+  elements.autoSplitDialog.addEventListener("click", (event) => {
+    if (event.target === elements.autoSplitDialog) closeAutoSplitDialog();
+  });
   elements.customCssToggle.addEventListener("click", () => {
     elements.customCssPanel.hidden = !elements.customCssPanel.hidden;
   });
@@ -1010,6 +1103,7 @@ The preview is designed as a print page first, then scaled for screen reading.
     }
   });
   window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !state.presentationOpen && !elements.autoSplitDialog.hidden) closeAutoSplitDialog();
     if (event.key === "Escape" && state.presentationOpen) closePresentation();
     if (event.key === "ArrowRight" || event.key === "PageDown") movePresentation(1);
     if (event.key === "ArrowLeft" || event.key === "PageUp") movePresentation(-1);

@@ -77,6 +77,22 @@
       <p id="custom-css-status" class="custom-css-status" aria-live="polite"></p>
     </section>
 
+    <section id="auto-split-dialog" class="dialog-backdrop" aria-label="Review auto split" hidden>
+      <div class="dialog">
+        <header class="dialog-header">
+          <h2>Review Split</h2>
+          <button id="auto-split-cancel" type="button" aria-label="Cancel auto split">Cancel</button>
+        </header>
+        <div class="dialog-body">
+          <p id="auto-split-summary" class="dialog-summary"></p>
+          <ol id="auto-split-list" class="split-review-list"></ol>
+        </div>
+        <footer class="dialog-footer">
+          <button id="auto-split-accept" type="button">Accept Split</button>
+        </footer>
+      </div>
+    </section>
+
     <div id="presentation" class="presentation presentation-presenter" hidden>
       <button id="exit-present" class="exit-present" type="button" aria-label="Exit presentation">Exit</button>
       <div class="presentation-stage">

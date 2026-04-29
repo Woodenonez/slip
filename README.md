@@ -34,7 +34,7 @@ The last self-contained no-build baseline is preserved in git commit `044fa79`.
 - Browser print/PDF stylesheet
 - Mirror presentation mode for audience-facing slide display
 - Presenter mode with current slide, next slide, notes, timer, and keyboard navigation
-- Rule-based heading auto-split
+- Rule-based heading auto-split with a review-and-accept dialog
 - Drag-and-drop image embedding as data URIs with large-file warnings
 
 ## Build
