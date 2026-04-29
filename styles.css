@@ -250,6 +250,59 @@ button:hover,
   color: var(--danger);
 }
 
+.custom-css-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 12;
+  width: min(520px, calc(100vw - 36px));
+  height: min(420px, calc(100vh - 96px));
+  display: grid;
+  grid-template-rows: 44px 1fr 36px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  box-shadow: 0 16px 48px rgba(20, 31, 42, 0.22);
+}
+
+.custom-css-panel[hidden] {
+  display: none;
+}
+
+.custom-css-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px 6px 14px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.custom-css-header h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+#custom-css-editor {
+  width: 100%;
+  min-height: 0;
+  resize: none;
+  border: 0;
+  outline: 0;
+  padding: 12px;
+  background: #fbfcfd;
+  color: #111827;
+  font: 13px/1.5 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.custom-css-status {
+  margin: 0;
+  padding: 8px 12px;
+  border-top: 1px solid var(--panel-border);
+  color: var(--muted);
+}
+
 .notes-toggle {
   display: inline-flex;
   align-items: center;
@@ -673,6 +726,7 @@ button:hover,
   .outline,
   .editor-pane,
   .pane-header,
+  .custom-css-panel,
   .slide-number,
   .overflow-badge,
   .notes,

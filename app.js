@@ -70,6 +70,12 @@ theme: clean
 size: widescreen
 ---
 
+<style>
+h1 {
+  letter-spacing: 0.02em;
+}
+</style>
+
 # Slip
 
 Browser-native Markdown slides with reliable print export.
@@ -152,6 +158,11 @@ The preview is designed as a print page first, then scaled for screen reading.
     importFile: document.getElementById("import-file"),
     exportMd: document.getElementById("export-md"),
     autoSplit: document.getElementById("auto-split"),
+    customCssToggle: document.getElementById("custom-css-toggle"),
+    customCssPanel: document.getElementById("custom-css-panel"),
+    customCssEditor: document.getElementById("custom-css-editor"),
+    customCssClose: document.getElementById("custom-css-close"),
+    customCssStatus: document.getElementById("custom-css-status"),
     printPdf: document.getElementById("print-pdf"),
     presentMenuButton: document.getElementById("present-menu-button"),
     presentMenuOptions: document.getElementById("present-menu-options"),
@@ -223,7 +234,8 @@ The preview is designed as a print page first, then scaled for screen reading.
   function parseDeck(markdown) {
     const normalized = markdown.replace(/\r\n?/g, "\n");
     const frontmatter = parseFrontmatter(normalized);
-    const rawSlides = splitSlides(frontmatter.body);
+    const customCss = extractCustomCss(frontmatter.body);
+    const rawSlides = splitSlides(customCss.body);
     const slides = rawSlides.map((source, index) => {
       const noteParts = source.split(/\n\?\?\?\n?/);
       const content = (noteParts.shift() || "").trim();
@@ -245,8 +257,20 @@ The preview is designed as a print page first, then scaled for screen reading.
         theme: frontmatter.meta.theme || "clean",
         size: normalizeSlideSize(frontmatter.meta.size),
       },
+      customCss: customCss.css,
       slides: slides.length ? slides : [{ id: "slide-1", index: 0, source: "", content: "", notes: "", hash: hashString(""), title: "Slide 1" }],
-      warnings: frontmatter.warnings,
+      warnings: [...frontmatter.warnings, ...customCss.warnings],
+    };
+  }
+
+  function extractCustomCss(markdown) {
+    const warnings = [];
+    const styleMatch = markdown.match(/^\s*<style>\n([\s\S]*?)\n<\/style>\s*/i);
+    if (!styleMatch) return { body: markdown, css: "", warnings };
+    return {
+      body: markdown.slice(styleMatch[0].length),
+      css: styleMatch[1].trim(),
+      warnings,
     };
   }
 
@@ -542,6 +566,7 @@ The preview is designed as a print page first, then scaled for screen reading.
     setSlideSizeVars(deck.meta.size);
     updatePrintSize(deck.meta.size);
     updatePresentationSizeClass(deck.meta.size);
+    updateCustomCss(deck.customCss);
     elements.preview.classList.toggle("show-notes", state.showNotes);
     renderOutline(deck);
     renderPreview(deck);
@@ -647,6 +672,42 @@ The preview is designed as a print page first, then scaled for screen reading.
     printStyle.textContent = `@page { size: ${size.page}; margin: 0; }`;
   }
 
+  function updateCustomCss(css) {
+    let style = document.getElementById("custom-slide-css");
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "custom-slide-css";
+      document.head.appendChild(style);
+    }
+    style.textContent = scopeCustomCss(css);
+    if (elements.customCssEditor.value !== css) {
+      elements.customCssEditor.value = css;
+    }
+    elements.customCssStatus.textContent = css ? "Applied to slide content." : "No custom CSS.";
+  }
+
+  function scopeCustomCss(css) {
+    if (!css.trim()) return "";
+    return css
+      .split("}")
+      .map((rule) => rule.trim())
+      .filter(Boolean)
+      .map((rule) => {
+        const parts = rule.split("{");
+        if (parts.length < 2) return "";
+        const selectors = parts.shift().trim();
+        const declarations = parts.join("{").trim();
+        if (!selectors || !declarations || selectors.startsWith("@")) return "";
+        const scopedSelectors = selectors
+          .split(",")
+          .map((selector) => `.slide ${selector.trim()}`)
+          .join(", ");
+        return `${scopedSelectors} { ${declarations} }`;
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+
   function detectSlideOverflow() {
     const nextOverflowSlides = new Set();
     const frames = elements.preview.querySelectorAll(":scope > .slide-frame");
@@ -714,6 +775,26 @@ The preview is designed as a print page first, then scaled for screen reading.
 
   function setSize(size) {
     setFrontmatterValue("size", size);
+  }
+
+  function setCustomCss(css) {
+    const markdown = getEditorValue();
+    const parts = splitFrontmatterBlock(markdown);
+    const withoutCss = parts.body.replace(/^\s*<style>\n[\s\S]*?\n<\/style>\s*/i, "");
+    const nextMarkdown = css.trim()
+      ? `${parts.frontmatter}<style>\n${css.trim()}\n</style>\n\n${withoutCss.trimStart()}`
+      : `${parts.frontmatter}${withoutCss.trimStart()}`;
+    setEditorValue(nextMarkdown);
+  }
+
+  function splitFrontmatterBlock(markdown) {
+    if (!markdown.startsWith("---\n")) return { frontmatter: "", body: markdown };
+    const end = markdown.indexOf("\n---", 4);
+    if (end === -1) return { frontmatter: "", body: markdown };
+    return {
+      frontmatter: `${markdown.slice(0, end + 4).trim()}\n\n`,
+      body: markdown.slice(end + 4).replace(/^\n+/, ""),
+    };
   }
 
   function setFrontmatterValue(key, value) {
@@ -874,6 +955,16 @@ The preview is designed as a print page first, then scaled for screen reading.
   });
   elements.exportMd.addEventListener("click", exportMarkdown);
   elements.autoSplit.addEventListener("click", autoSplitMarkdown);
+  elements.customCssToggle.addEventListener("click", () => {
+    elements.customCssPanel.hidden = !elements.customCssPanel.hidden;
+  });
+  elements.customCssClose.addEventListener("click", () => {
+    elements.customCssPanel.hidden = true;
+  });
+  elements.customCssEditor.addEventListener("input", () => {
+    clearTimeout(updateTimer);
+    updateTimer = window.setTimeout(() => setCustomCss(elements.customCssEditor.value), 250);
+  });
   elements.printPdf.addEventListener("click", () => window.print());
   elements.presentMenuButton.addEventListener("click", () => {
     const isOpen = !elements.presentMenuOptions.hidden;

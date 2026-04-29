@@ -41,6 +41,13 @@
 - Updated `README.md` to document partial preview rendering.
 - Dependency status changed after the self-contained baseline: Vite and CodeMirror 6 are now required for active development and builds.
 
+## 2026-04-29 (4)
+
+- Added a custom CSS panel and top-level `<style>` block support.
+- Scoped custom CSS selectors to slide content before injecting styles.
+- Preserved custom CSS in the Markdown source of truth.
+- Verified custom CSS support with `node --check app.js` and `npm run build`; the existing large bundle warning remains.
+
 ## Dependencies
 
 - Runtime dependencies introduced: CodeMirror 6 packages for the editor, KaTeX for math rendering, highlight.js for code highlighting.
