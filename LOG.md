@@ -1,5 +1,7 @@
 # Project Log
 
+# V1 Development
+
 ## 2026-04-29 (1)
 
 - Reviewed `/plan/plan.md` and version plans `v1.md` through `v4.md`.
@@ -93,3 +95,63 @@
 - Added a root MIT `LICENSE` file and documented the license in `README.md`.
 - Compatibility notes: runtime dependencies are MIT or BSD-style; development/build dependencies include Apache-2.0 and MPL-2.0 packages that do not block publishing Slip under MIT when their notices are preserved.
 - Added README contributors for Ze and OpenAI Codex without introducing dependencies.
+
+---
+
+# V2 Development
+
+V1 is finished and marked in `plan/v1_done.md`. Entries below track V2 work based on the current `plan/v2.md`.
+
+## 2026-04-30 (1)
+
+- Started V2 Step 1: project model foundation.
+- Added an internal V2 manifest shape for `config.json` with `schema`, `version`, title, theme, size, entry, and asset index metadata.
+- Added project state that keeps stable asset IDs, paths, MIME type, size, hash, and data URLs in memory.
+- Added project-folder import support for folders containing `slides.md`, optional `config.json`, and `assets/`.
+- Added `Projectize` to migrate the current V1 markdown deck into V2 project mode without changing the Markdown source.
+- Updated image rendering so `assets/...` Markdown image references resolve against imported project assets.
+- Added `npm run test:v2` with Playwright coverage for project-folder import and V1-to-project migration.
+- Updated README and AGENTS with V2 project model usage and test commands.
+- No new runtime or development dependencies were introduced.
+
+## 2026-04-30 (2)
+
+- Continued V2 with Step 2: IndexedDB virtual file system.
+- Added versioned IndexedDB stores for project documents and asset records.
+- Added automatic autosave for project-mode Markdown, manifest metadata, and asset records.
+- Added project restore on refresh so imported or projectized decks return in project mode.
+- Added recovery warnings when stored project data is invalid, storage is unavailable, or referenced asset records are missing.
+- Updated V2 Playwright coverage for refresh restore and missing-asset recovery.
+- Updated README and AGENTS with project autosave and V2 storage test expectations.
+- Merged Markdown file import and project import into a single `Import` dropdown.
+- Merged Markdown export and PDF print into a single `Export` dropdown.
+- Added dropdown triangle indicators to Import, Export, and Present menu buttons.
+- Added toolbar dividers so the order is `Import`, `Export`, divider, `Projectize`, `Auto Split`, `CSS`, divider, `Present`.
+- Added a Projectize confirmation dialog warning that the operation cannot be reverted, with Confirm and Cancel actions.
+- Reused the existing import, export, and print behavior without changing file formats or storage.
+- Added browser regression coverage for the consolidated toolbar dropdowns and Projectize confirmation.
+- Updated README usage text for the consolidated menus.
+- No new runtime or development dependencies were introduced.
+
+## 2026-04-30 (3)
+
+- Continued V2 with Step 3: asset management UI.
+- Added an Assets panel for project-mode decks with sorting by name, size, or usage count.
+- Added asset import into `/assets` using the existing project asset model and browser file APIs.
+- Added per-asset Insert, Rename, and Remove actions.
+- Added reference checks: used assets show usage counts, active-reference rename is blocked until reference rewriting is added, and active-reference removal requires confirmation.
+- Added duplicate asset detection based on content hash and flags duplicate content in the panel.
+- Updated README and AGENTS with asset panel usage and test expectations.
+- Added V2 browser regression coverage for asset import, usage counts, duplicate detection, rename, insertion, and referenced-asset removal.
+- No new runtime or development dependencies were introduced.
+
+## 2026-04-30 (4)
+
+- Continued V2 with Step 4: Markdown reference rewriting.
+- Kept project asset path resolution in the render path and added missing-asset preview placeholders for unresolved `assets/...` image references.
+- Added non-blocking unresolved asset diagnostics in the status line.
+- Updated asset rename to rewrite matching Markdown image/link references automatically.
+- Updated referenced-asset removal messaging to indicate when Markdown references become unresolved.
+- Updated README and AGENTS with reference rewriting and missing-asset expectations.
+- Expanded V2 browser regression coverage for referenced asset rename, Markdown rewrite, missing preview placeholders, and unresolved-reference messaging.
+- No new runtime or development dependencies were introduced.

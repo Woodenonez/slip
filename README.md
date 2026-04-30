@@ -18,11 +18,17 @@ Open the local URL printed by Vite, usually `http://127.0.0.1:5173/`.
 - Write Markdown in the editor. Slides are split with `---`.
 - Use frontmatter for `title`, `theme`, and `size`.
 - Add speaker notes after `???`.
-- Click `Import` or `Export MD` for local Markdown files.
+- Click `Import` and choose `File` for local Markdown files.
+- Click `Export` and choose `Markdown` to download the current deck as `.md`.
+- Click `Projectize`, then confirm, to convert the current deck into the V2 project model.
+- Click `Import` and choose `Project` to load a folder containing `slides.md`, optional `config.json`, and `assets/`.
+- Project decks are autosaved in browser storage and restored on refresh.
+- Use the `Assets` panel in project mode to add files, insert image references, sort by name/size/usage, rename assets with reference rewriting, and remove assets with reference warnings.
+- Missing `assets/...` references are shown as non-blocking warnings and placeholders in preview.
 - Click `Auto Split` to review generated slide breaks before accepting.
 - Click `CSS` to add scoped slide CSS in a top-level `<style>` block.
 - Click `Present` and choose Mirror Mode or Presenter Mode.
-- Click `Print / PDF` to open the browser print dialog.
+- Click `Export` and choose `PDF` to open the browser print dialog.
 
 ## Testing
 
@@ -30,10 +36,13 @@ Open the local URL printed by Vite, usually `http://127.0.0.1:5173/`.
 npm run check
 npm run build
 npm run test:v1
+npm run test:v2
 npm run release:check
 ```
 
 `npm run test:v1` runs Playwright browser regressions for print sizing, overflow warnings, presentation modes, Auto Split, and a 120-slide deck. `npm run release:check` runs syntax validation, the production build, and the V1 browser suite.
+
+`npm run test:v2` runs the V2 project-mode regressions for project import, migration, autosave restore, asset management, reference rewriting, and missing-asset recovery.
 
 The last self-contained no-build baseline is preserved in git commit `044fa79`.
 

@@ -108,13 +108,49 @@ $$
 
 ## Export
 
-Use **Print / PDF** to open the browser print dialog.
+Use **Export > PDF** to open the browser print dialog.
 
 The preview is designed as a print page first, then scaled for screen reading.
 `;
 
+  const newDeckMarkdown = `---
+title: New Deck
+theme: clean
+size: widescreen
+---
+
+# Title Slide
+
+Start with the main idea.
+
+---
+
+## Key Points
+
+- First point
+- Second point
+- Third point
+
+---
+
+## Closing
+
+End with the takeaway.
+`;
+
+  const projectStorage = {
+    dbName: "slip-project-vfs",
+    dbVersion: 1,
+    currentProjectId: "current",
+    localSnapshotKey: "slip.project.document",
+    documentStore: "documents",
+    assetStore: "assets",
+  };
+
+  const initialProjectDocument = readLocalProjectSnapshot();
+
   const state = {
-    markdown: localStorage.getItem("slip.markdown") || sampleMarkdown,
+    markdown: initialProjectDocument?.markdown || localStorage.getItem("slip.markdown") || sampleMarkdown,
     deck: null,
     activeSlide: 0,
     showNotes: false,
@@ -123,8 +159,16 @@ The preview is designed as a print page first, then scaled for screen reading.
     presentationStartedAt: 0,
     presentationTimer: 0,
     autoSplitDraft: null,
+    project: initialProjectDocument
+      ? createProjectFromMarkdown(initialProjectDocument.markdown, [], initialProjectDocument.manifest)
+      : createSingleFileProject(),
+    db: null,
+    storageReady: false,
+    storageWarning: "",
+    saveTimer: 0,
     previewKeys: new Map(),
     overflowSlides: new Set(),
+    assetSort: "name",
   };
 
   const slideSizes = {
@@ -146,6 +190,103 @@ The preview is designed as a print page first, then scaled for screen reading.
     },
   };
 
+  function createSingleFileProject() {
+    return {
+      mode: "single-file",
+      manifest: null,
+      assets: new Map(),
+    };
+  }
+
+  function createProjectManifest(deck, assetRecords = []) {
+    return {
+      schema: "slip.project",
+      version: 2,
+      title: deck.meta.title,
+      theme: deck.meta.theme,
+      size: deck.meta.size,
+      entry: "slides.md",
+      assets: assetRecords.map((asset) => ({
+        id: asset.id,
+        path: asset.path,
+        filename: asset.filename,
+        mime: asset.mime,
+        size: asset.size,
+        hash: asset.hash,
+      })),
+    };
+  }
+
+  function openProjectDatabase() {
+    return new Promise((resolve, reject) => {
+      if (!("indexedDB" in window)) {
+        reject(new Error("IndexedDB is not available in this browser."));
+        return;
+      }
+
+      const request = indexedDB.open(projectStorage.dbName, projectStorage.dbVersion);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(projectStorage.documentStore)) {
+          db.createObjectStore(projectStorage.documentStore, { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains(projectStorage.assetStore)) {
+          const assets = db.createObjectStore(projectStorage.assetStore, { keyPath: "id" });
+          assets.createIndex("projectId", "projectId", { unique: false });
+          assets.createIndex("path", "path", { unique: false });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error("Could not open project storage."));
+      request.onblocked = () => reject(new Error("Project storage is blocked by another open Slip tab."));
+    });
+  }
+
+  function idbRequest(request) {
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error("IndexedDB request failed."));
+    });
+  }
+
+  function idbTransactionComplete(transaction) {
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error("IndexedDB transaction failed."));
+      transaction.onabort = () => reject(transaction.error || new Error("IndexedDB transaction aborted."));
+    });
+  }
+
+  function normalizeProjectManifest(rawManifest, deck, assets) {
+    const manifest = rawManifest && typeof rawManifest === "object" ? rawManifest : {};
+    const normalizedAssets = assets.map((asset) => {
+      const existing = Array.isArray(manifest.assets)
+        ? manifest.assets.find((item) => item.path === asset.path || item.hash === asset.hash)
+        : null;
+      return {
+        ...asset,
+        id: existing?.id || asset.id,
+      };
+    });
+
+    return {
+      schema: "slip.project",
+      version: Number(manifest.version) || 2,
+      title: String(manifest.title || deck.meta.title || "Untitled deck"),
+      theme: String(manifest.theme || deck.meta.theme || "clean"),
+      size: normalizeSlideSize(manifest.size || deck.meta.size),
+      entry: "slides.md",
+      assets: normalizedAssets.map((asset) => ({
+        id: asset.id,
+        path: asset.path,
+        filename: asset.filename,
+        mime: asset.mime,
+        size: asset.size,
+        hash: asset.hash,
+      })),
+    };
+  }
+
   const elements = {
     app: document.getElementById("app"),
     editor: document.getElementById("editor"),
@@ -153,10 +294,25 @@ The preview is designed as a print page first, then scaled for screen reading.
     outline: document.getElementById("outline-list"),
     status: document.getElementById("status"),
     deckTitle: document.getElementById("deck-title"),
+    projectMode: document.getElementById("project-mode"),
+    newDeck: document.getElementById("new-deck"),
+    newDeckDialog: document.getElementById("new-deck-dialog"),
+    newDeckMessage: document.getElementById("new-deck-message"),
+    newDeckConfirm: document.getElementById("new-deck-confirm"),
+    newDeckCancel: document.getElementById("new-deck-cancel"),
     themePicker: document.getElementById("theme-picker"),
     sizePicker: document.getElementById("size-picker"),
     showNotes: document.getElementById("show-notes"),
+    importMenuButton: document.getElementById("import-menu-button"),
+    importMenuOptions: document.getElementById("import-menu-options"),
     importFile: document.getElementById("import-file"),
+    importProject: document.getElementById("import-project"),
+    projectize: document.getElementById("projectize"),
+    projectizeDialog: document.getElementById("projectize-dialog"),
+    projectizeConfirm: document.getElementById("projectize-confirm"),
+    projectizeCancel: document.getElementById("projectize-cancel"),
+    exportMenuButton: document.getElementById("export-menu-button"),
+    exportMenuOptions: document.getElementById("export-menu-options"),
     exportMd: document.getElementById("export-md"),
     autoSplit: document.getElementById("auto-split"),
     customCssToggle: document.getElementById("custom-css-toggle"),
@@ -164,6 +320,10 @@ The preview is designed as a print page first, then scaled for screen reading.
     customCssEditor: document.getElementById("custom-css-editor"),
     customCssClose: document.getElementById("custom-css-close"),
     customCssStatus: document.getElementById("custom-css-status"),
+    assetPanel: document.getElementById("asset-panel"),
+    assetImport: document.getElementById("asset-import"),
+    assetList: document.getElementById("asset-list"),
+    assetSort: document.getElementById("asset-sort"),
     autoSplitDialog: document.getElementById("auto-split-dialog"),
     autoSplitSummary: document.getElementById("auto-split-summary"),
     autoSplitList: document.getElementById("auto-split-list"),
@@ -235,6 +395,12 @@ The preview is designed as a print page first, then scaled for screen reading.
       changes: { from: 0, to: editorView.state.doc.length, insert: value },
     });
     update();
+  }
+
+  function setEditorValueWithoutUpdate(value) {
+    editorView.dispatch({
+      changes: { from: 0, to: editorView.state.doc.length, insert: value },
+    });
   }
 
   function parseDeck(markdown) {
@@ -483,7 +649,13 @@ The preview is designed as a print page first, then scaled for screen reading.
       codeSpans.push(`<code>${code}</code>`);
       return token;
     });
-    output = output.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2">');
+    output = output.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt, source) => {
+      const resolvedSource = resolveProjectAssetUrl(unescapeHtml(source));
+      if (!resolvedSource) {
+        return missingAssetPlaceholder(unescapeHtml(source));
+      }
+      return `<img alt="${escapeHtml(unescapeHtml(alt))}" src="${escapeHtml(resolvedSource)}">`;
+    });
     output = output.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
     output = output.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     output = output.replace(/\*([^*]+)\*/g, "<em>$1</em>");
@@ -545,7 +717,9 @@ The preview is designed as a print page first, then scaled for screen reading.
     const started = performance.now();
     state.markdown = getEditorValue();
     state.deck = parseDeck(state.markdown);
+    syncProjectFromDeck();
     localStorage.setItem("slip.markdown", state.markdown);
+    scheduleProjectSave();
     render();
     const elapsed = Math.round(performance.now() - started);
     const warnings = collectWarnings(state.deck);
@@ -562,6 +736,11 @@ The preview is designed as a print page first, then scaled for screen reading.
 
   function collectWarnings(deck) {
     const warnings = [...deck.warnings];
+    if (state.storageWarning) warnings.push(state.storageWarning);
+    const unresolvedAssets = findUnresolvedAssetReferences(state.markdown);
+    if (unresolvedAssets.length) {
+      warnings.push(`Unresolved asset reference${unresolvedAssets.length === 1 ? "" : "s"}: ${formatAssetReferenceList(unresolvedAssets)}.`);
+    }
     const largeDataImage = state.markdown.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/);
     if (largeDataImage && largeDataImage[1].length > 1_400_000) {
       warnings.push("Large embedded image detected. Consider V2 project assets for decks over 1-2MB.");
@@ -571,7 +750,10 @@ The preview is designed as a print page first, then scaled for screen reading.
 
   function render() {
     const deck = state.deck;
+    const isProjectMode = state.project.mode === "project";
     elements.deckTitle.textContent = deck.meta.title;
+    elements.projectMode.textContent = isProjectMode ? "Project" : "Single file";
+    elements.projectize.disabled = isProjectMode;
     elements.themePicker.value = ["clean", "contrast", "paper"].includes(deck.meta.theme) ? deck.meta.theme : "clean";
     elements.sizePicker.value = deck.meta.size;
     setSlideSizeVars(deck.meta.size);
@@ -581,6 +763,7 @@ The preview is designed as a print page first, then scaled for screen reading.
     elements.preview.classList.toggle("show-notes", state.showNotes);
     renderOutline(deck);
     renderPreview(deck);
+    renderAssetPanel();
     if (state.presentationOpen) renderPresentation();
   }
 
@@ -602,11 +785,12 @@ The preview is designed as a print page first, then scaled for screen reading.
   function renderPreview(deck) {
     const theme = ["clean", "contrast", "paper"].includes(deck.meta.theme) ? deck.meta.theme : "clean";
     const size = deck.meta.size;
+    const assetRenderKey = projectAssetRenderKey();
     const nextKeys = new Map();
     const fragment = document.createDocumentFragment();
 
     deck.slides.forEach((slide, index) => {
-      const key = `${theme}:${size}:${slide.hash}`;
+      const key = `${theme}:${size}:${slide.hash}:${assetRenderKey}`;
       nextKeys.set(slide.id, key);
 
       let frame = elements.preview.querySelector(`[data-slide-id="${slide.id}"]`);
@@ -622,6 +806,14 @@ The preview is designed as a print page first, then scaled for screen reading.
     state.previewKeys = nextKeys;
     scaleSlides();
     requestAnimationFrame(detectSlideOverflow);
+  }
+
+  function projectAssetRenderKey() {
+    if (state.project.mode !== "project") return "single-file";
+    return [...state.project.assets.values()]
+      .map((asset) => `${asset.path}:${asset.hash}`)
+      .sort()
+      .join("|");
   }
 
   function createSlideFrame(slide, index, theme, size) {
@@ -760,6 +952,134 @@ The preview is designed as a print page first, then scaled for screen reading.
     return `Slides ${slideNumbers.slice(0, 4).join(", ")} and ${slideNumbers.length - 4} more`;
   }
 
+  function renderAssetPanel() {
+    const isProjectMode = state.project.mode === "project";
+    elements.assetPanel.classList.toggle("is-inactive", !isProjectMode);
+    elements.assetImport.disabled = !isProjectMode;
+    elements.assetSort.disabled = !isProjectMode;
+
+    if (!isProjectMode) {
+      elements.assetList.innerHTML = '<p class="asset-empty">Projectize or import a project to manage assets.</p>';
+      return;
+    }
+
+    const usage = countAssetUsage(state.markdown);
+    const duplicates = findDuplicateAssetHashes();
+    const assets = sortAssets([...state.project.assets.values()], usage);
+
+    if (!assets.length) {
+      elements.assetList.innerHTML = '<p class="asset-empty">No project assets yet.</p>';
+      return;
+    }
+
+    elements.assetList.innerHTML = "";
+    assets.forEach((asset) => {
+      const item = document.createElement("section");
+      item.className = "asset-item";
+      item.dataset.assetPath = asset.path;
+      const useCount = usage.get(asset.path) || 0;
+      item.innerHTML = `<div class="asset-name" title="${escapeHtml(asset.filename)}">${escapeHtml(asset.filename)}</div>
+        <div class="asset-path" title="${escapeHtml(asset.path)}">${escapeHtml(asset.path)}</div>
+        <div class="asset-meta">${formatBytes(asset.size)} · used ${useCount} time${useCount === 1 ? "" : "s"}</div>
+        ${duplicates.has(asset.hash) ? '<div class="asset-duplicate">Duplicate content</div>' : ""}
+        <div class="asset-item-actions">
+          <button type="button" data-action="insert">Insert</button>
+          <button type="button" data-action="rename">Rename</button>
+          <button type="button" data-action="remove">Remove</button>
+        </div>`;
+      elements.assetList.appendChild(item);
+    });
+  }
+
+  function countAssetUsage(markdown) {
+    const usage = new Map();
+    extractMarkdownAssetReferences(markdown).forEach((path) => {
+      usage.set(path, (usage.get(path) || 0) + 1);
+    });
+    return usage;
+  }
+
+  function extractMarkdownAssetReferences(markdown) {
+    const references = [];
+    const pattern = /!?\[[^\]]*]\(([^)]+)\)/g;
+    let match = pattern.exec(markdown);
+    while (match) {
+      const path = normalizeAssetPath(unescapeHtml(match[1]));
+      if (path.startsWith("assets/")) references.push(path);
+      match = pattern.exec(markdown);
+    }
+    return references;
+  }
+
+  function findUnresolvedAssetReferences(markdown) {
+    if (state.project.mode !== "project") return [];
+    return [...new Set(extractMarkdownAssetReferences(markdown))]
+      .filter((path) => !state.project.assets.has(path));
+  }
+
+  function formatAssetReferenceList(paths) {
+    if (paths.length <= 3) return paths.join(", ");
+    return `${paths.slice(0, 3).join(", ")} and ${paths.length - 3} more`;
+  }
+
+  function rewriteAssetReferences(markdown, oldPath, newPath) {
+    return markdown.replace(/(!?\[[^\]]*]\()([^)]+)(\))/g, (match, prefix, source, suffix) => {
+      const normalizedSource = normalizeAssetPath(unescapeHtml(source));
+      if (normalizedSource !== oldPath) return match;
+      return `${prefix}${newPath}${suffix}`;
+    });
+  }
+
+  function hasProjectAsset(path) {
+    return state.project.mode === "project" && state.project.assets.has(normalizeAssetPath(path));
+  }
+
+  function isProjectAssetReference(path) {
+    return normalizeAssetPath(path).startsWith("assets/");
+  }
+
+  function missingAssetPlaceholder(path) {
+    return `<span class="missing-asset" role="img" aria-label="Missing asset">${escapeHtml(path)}</span>`;
+  }
+
+  function markdownAssetCount(markdown, path) {
+    return extractMarkdownAssetReferences(markdown)
+      .filter((reference) => reference === path)
+      .length;
+  }
+
+  function updateMarkdownAfterAssetRename(oldPath, newPath) {
+    const nextMarkdown = rewriteAssetReferences(getEditorValue(), oldPath, newPath);
+    if (nextMarkdown !== getEditorValue()) {
+      setEditorValue(nextMarkdown);
+    } else {
+      render();
+      scheduleProjectSave();
+    }
+  }
+
+  function findDuplicateAssetHashes() {
+    const counts = new Map();
+    state.project.assets.forEach((asset) => {
+      counts.set(asset.hash, (counts.get(asset.hash) || 0) + 1);
+    });
+    return new Set([...counts.entries()].filter((entry) => entry[1] > 1).map((entry) => entry[0]));
+  }
+
+  function sortAssets(assets, usage) {
+    return assets.sort((left, right) => {
+      if (state.assetSort === "size") return right.size - left.size || left.filename.localeCompare(right.filename);
+      if (state.assetSort === "usage") return (usage.get(right.path) || 0) - (usage.get(left.path) || 0) || left.filename.localeCompare(right.filename);
+      return left.filename.localeCompare(right.filename);
+    });
+  }
+
+  function formatBytes(bytes) {
+    if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
+    if (bytes >= 1_000) return `${Math.round(bytes / 1_000)} KB`;
+    return `${bytes} B`;
+  }
+
   function scrollToSlide(index) {
     state.activeSlide = index;
     document.getElementById(`frame-${index}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -778,6 +1098,259 @@ The preview is designed as a print page first, then scaled for screen reading.
 
   function slugify(value) {
     return (value || "slides").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "slides";
+  }
+
+  function syncProjectFromDeck() {
+    if (state.project.mode !== "project" || !state.deck) return;
+    const assets = [...state.project.assets.values()];
+    state.project.manifest = createProjectManifest(state.deck, assets);
+  }
+
+  function migrateCurrentDeckToProject() {
+    state.project = createProjectFromMarkdown(getEditorValue());
+    syncProjectFromDeck();
+    elements.status.textContent = "Project mode ready: config.json and slides.md are defined.";
+    elements.status.classList.remove("warning");
+    render();
+    scheduleProjectSave();
+  }
+
+  function openProjectizeDialog() {
+    closeToolbarMenus();
+    elements.projectizeDialog.hidden = false;
+  }
+
+  function closeProjectizeDialog() {
+    elements.projectizeDialog.hidden = true;
+  }
+
+  function confirmProjectize() {
+    closeProjectizeDialog();
+    migrateCurrentDeckToProject();
+  }
+
+  function requestNewDeck() {
+    closeToolbarMenus();
+    if (!hasUserContent()) {
+      startNewDeck();
+      return;
+    }
+    elements.newDeckMessage.textContent = newDeckWarningMessage();
+    elements.newDeckDialog.hidden = false;
+  }
+
+  function hasUserContent() {
+    return normalizeMarkdownForCompare(getEditorValue()) !== normalizeMarkdownForCompare(newDeckMarkdown);
+  }
+
+  function normalizeMarkdownForCompare(markdown) {
+    return markdown.replace(/\r\n?/g, "\n").trim();
+  }
+
+  function newDeckWarningMessage() {
+    const parts = ["Starting a new deck will discard the current content."];
+    if (state.project.mode !== "project") {
+      parts.push("The current deck is not saved as a project.");
+    }
+    return parts.join(" ");
+  }
+
+  function closeNewDeckDialog() {
+    elements.newDeckDialog.hidden = true;
+  }
+
+  function confirmNewDeck() {
+    closeNewDeckDialog();
+    startNewDeck();
+  }
+
+  function startNewDeck() {
+    state.project = createSingleFileProject();
+    state.storageWarning = "";
+    state.activeSlide = 0;
+    state.overflowSlides = new Set();
+    state.previewKeys = new Map();
+    clearCurrentProjectStorage().catch((error) => {
+      state.storageWarning = `Could not clear stored project: ${error.message}`;
+    });
+    setEditorValue(newDeckMarkdown);
+    elements.status.textContent = "Started a new deck from the template.";
+    elements.status.classList.remove("warning");
+  }
+
+  function createProjectFromMarkdown(markdown, assetRecords = [], manifest = null) {
+    const deck = parseDeck(markdown);
+    const normalizedManifest = normalizeProjectManifest(manifest, deck, assetRecords);
+    const assets = new Map();
+    assetRecords.forEach((asset) => {
+      const manifestAsset = normalizedManifest.assets.find((item) => item.path === asset.path);
+      assets.set(asset.path, {
+        ...asset,
+        id: manifestAsset?.id || asset.id,
+      });
+    });
+    return {
+      mode: "project",
+      manifest: normalizedManifest,
+      assets,
+    };
+  }
+
+  async function initializeProjectStorage() {
+    try {
+      state.db = await openProjectDatabase();
+      state.storageReady = true;
+      await restoreCurrentProject();
+    } catch (error) {
+      state.storageWarning = `Project storage unavailable: ${error.message}`;
+      state.storageReady = false;
+    } finally {
+      update();
+    }
+  }
+
+  async function restoreCurrentProject() {
+    const document = await readCurrentProjectDocument();
+    if (!document) return;
+
+    if (typeof document.markdown !== "string" || !document.manifest) {
+      state.storageWarning = "Stored project is invalid. Using the current single-file deck.";
+      return;
+    }
+
+    const storedAssets = await readStoredAssets(document.assetIds || []);
+    const assetRecords = storedAssets.records.map((asset) => ({
+      id: asset.id,
+      path: asset.path,
+      filename: asset.filename,
+      mime: asset.mime,
+      size: asset.size,
+      hash: asset.hash,
+      dataUrl: asset.dataUrl,
+      lastModified: asset.lastModified || 0,
+    }));
+
+    state.project = createProjectFromMarkdown(document.markdown, assetRecords, document.manifest);
+    setEditorValueWithoutUpdate(document.markdown);
+    if (storedAssets.missing.length) {
+      state.storageWarning = `Project restored with ${storedAssets.missing.length} missing asset record${storedAssets.missing.length === 1 ? "" : "s"}. Re-import missing files.`;
+    } else {
+      state.storageWarning = "";
+    }
+  }
+
+  async function readCurrentProjectDocument() {
+    const transaction = state.db.transaction(projectStorage.documentStore, "readonly");
+    const store = transaction.objectStore(projectStorage.documentStore);
+    const document = await idbRequest(store.get(projectStorage.currentProjectId));
+    if (document) return document;
+    return readLocalProjectSnapshot();
+  }
+
+  function readLocalProjectSnapshot() {
+    try {
+      const snapshot = localStorage.getItem(projectStorage.localSnapshotKey);
+      if (!snapshot) return null;
+      const document = JSON.parse(snapshot);
+      return document?.id === projectStorage.currentProjectId ? document : null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  async function readStoredAssets(assetIds) {
+    const transaction = state.db.transaction(projectStorage.assetStore, "readonly");
+    const store = transaction.objectStore(projectStorage.assetStore);
+    const records = [];
+    const missing = [];
+
+    for (const assetId of assetIds) {
+      const asset = await idbRequest(store.get(assetId));
+      if (asset) {
+        records.push(asset);
+      } else {
+        missing.push(assetId);
+      }
+    }
+
+    return { records, missing };
+  }
+
+  function scheduleProjectSave() {
+    if (!state.storageReady || state.project.mode !== "project" || !state.deck) return;
+    window.clearTimeout(state.saveTimer);
+    state.saveTimer = window.setTimeout(() => {
+      state.saveTimer = 0;
+      saveCurrentProject().catch((error) => {
+        state.storageWarning = `Project autosave failed: ${error.message}`;
+        render();
+      });
+    }, 250);
+  }
+
+  async function saveCurrentProject() {
+    const assets = [...state.project.assets.values()];
+    const assetIds = assets.map((asset) => asset.id);
+    const documentRecord = {
+      id: projectStorage.currentProjectId,
+      manifest: state.project.manifest,
+      markdown: state.markdown,
+      assetIds,
+      updatedAt: new Date().toISOString(),
+    };
+    const transaction = state.db.transaction([projectStorage.documentStore, projectStorage.assetStore], "readwrite");
+    const documents = transaction.objectStore(projectStorage.documentStore);
+    const assetStore = transaction.objectStore(projectStorage.assetStore);
+
+    documents.put(documentRecord);
+    localStorage.setItem(projectStorage.localSnapshotKey, JSON.stringify(documentRecord));
+
+    assets.forEach((asset) => {
+      assetStore.put({
+        ...asset,
+        projectId: projectStorage.currentProjectId,
+      });
+    });
+
+    await idbTransactionComplete(transaction);
+    if (state.storageWarning.startsWith("Project autosave failed:")) {
+      state.storageWarning = "";
+      render();
+    }
+  }
+
+  async function clearCurrentProjectStorage() {
+    localStorage.removeItem(projectStorage.localSnapshotKey);
+    if (!state.storageReady) return;
+    const transaction = state.db.transaction([projectStorage.documentStore, projectStorage.assetStore], "readwrite");
+    transaction.objectStore(projectStorage.documentStore).delete(projectStorage.currentProjectId);
+    const assetStore = transaction.objectStore(projectStorage.assetStore);
+    const index = assetStore.index("projectId");
+    const request = index.openCursor(IDBKeyRange.only(projectStorage.currentProjectId));
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      cursor.delete();
+      cursor.continue();
+    };
+    await idbTransactionComplete(transaction);
+  }
+
+  function resolveProjectAssetUrl(source) {
+    if (state.project.mode !== "project") return source;
+    if (/^(data:|https?:|blob:|#|mailto:)/i.test(source)) return source;
+    const normalized = normalizeAssetPath(source);
+    const asset = state.project.assets.get(normalized);
+    if (asset) return asset.dataUrl;
+    if (isProjectAssetReference(normalized)) return "";
+    return source;
+  }
+
+  function normalizeAssetPath(path) {
+    return path
+      .replace(/^\.\/+/, "")
+      .replace(/^\/+/, "")
+      .replace(/\\/g, "/");
   }
 
   function setTheme(theme) {
@@ -1008,9 +1581,199 @@ The preview is designed as a print page first, then scaled for screen reading.
   function importFile(file) {
     const reader = new FileReader();
     reader.onload = () => {
+      state.project = createSingleFileProject();
+      clearCurrentProjectStorage().catch((error) => {
+        state.storageWarning = `Could not clear stored project: ${error.message}`;
+      });
       setEditorValue(String(reader.result || ""));
     };
     reader.readAsText(file);
+  }
+
+  async function importProjectFiles(fileList) {
+    const files = [...fileList];
+    const slidesFile = findProjectFile(files, "slides.md");
+    if (!slidesFile) {
+      elements.status.textContent = "Project import needs /project/slides.md or slides.md.";
+      elements.status.classList.add("warning");
+      return;
+    }
+
+    try {
+      const markdown = await slidesFile.text();
+      const manifestFile = findProjectFile(files, "config.json");
+      const manifest = manifestFile ? JSON.parse(await manifestFile.text()) : null;
+      const assetFiles = files.filter((file) => getProjectRelativePath(file).startsWith("assets/"));
+      const assetRecords = await Promise.all(assetFiles.map(readAssetRecord));
+      state.project = createProjectFromMarkdown(markdown, assetRecords, manifest);
+      setEditorValue(markdown);
+      elements.status.textContent = `Project imported: ${assetRecords.length} asset${assetRecords.length === 1 ? "" : "s"} indexed.`;
+      elements.status.classList.remove("warning");
+    } catch (error) {
+      elements.status.textContent = `Project import failed: ${error.message}`;
+      elements.status.classList.add("warning");
+    }
+  }
+
+  function findProjectFile(files, filename) {
+    return files.find((file) => getProjectRelativePath(file) === filename || getProjectRelativePath(file) === `project/${filename}`);
+  }
+
+  function getProjectRelativePath(file) {
+    const rawPath = file.webkitRelativePath || file.name;
+    const normalized = normalizeAssetPath(rawPath);
+    return normalized.replace(/^project\//, "");
+  }
+
+  async function readAssetRecord(file) {
+    return createAssetRecord(file, getProjectRelativePath(file));
+  }
+
+  async function createAssetRecord(file, path) {
+    const dataUrl = await readFileAsDataUrl(file);
+    const hash = hashString(dataUrl);
+    return {
+      id: createAssetId(path, hash),
+      path,
+      filename: file.name,
+      mime: file.type || "application/octet-stream",
+      size: file.size,
+      hash,
+      dataUrl,
+      lastModified: file.lastModified || 0,
+    };
+  }
+
+  async function importAssetFiles(fileList) {
+    if (state.project.mode !== "project") {
+      elements.status.textContent = "Projectize or import a project before adding assets.";
+      elements.status.classList.add("warning");
+      return;
+    }
+
+    const files = [...fileList];
+    if (!files.length) return;
+
+    const records = await Promise.all(files.map(async (file) => {
+      const path = uniqueAssetPath(file.name);
+      return createAssetRecord(file, path);
+    }));
+
+    records.forEach((asset) => state.project.assets.set(asset.path, asset));
+    syncProjectFromDeck();
+    render();
+    scheduleProjectSave();
+    const duplicateCount = records.filter((asset) => [...state.project.assets.values()].some((item) => item.path !== asset.path && item.hash === asset.hash)).length;
+    elements.status.textContent = `Added ${records.length} asset${records.length === 1 ? "" : "s"}${duplicateCount ? `; ${duplicateCount} duplicate${duplicateCount === 1 ? "" : "s"} flagged` : ""}.`;
+    elements.status.classList.toggle("warning", duplicateCount > 0);
+  }
+
+  function uniqueAssetPath(filename) {
+    const safeName = sanitizeFilename(filename);
+    const dot = safeName.lastIndexOf(".");
+    const base = dot > 0 ? safeName.slice(0, dot) : safeName;
+    const extension = dot > 0 ? safeName.slice(dot) : "";
+    let candidate = `assets/${safeName}`;
+    let index = 2;
+    while (state.project.assets.has(candidate)) {
+      candidate = `assets/${base}-${index}${extension}`;
+      index += 1;
+    }
+    return candidate;
+  }
+
+  function sanitizeFilename(filename) {
+    const fallback = "asset";
+    const cleaned = filename
+      .replace(/\\/g, "/")
+      .split("/")
+      .pop()
+      .replace(/[^A-Za-z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return cleaned || fallback;
+  }
+
+  function handleAssetAction(event) {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+    const item = button.closest(".asset-item");
+    const asset = state.project.assets.get(item?.dataset.assetPath || "");
+    if (!asset) return;
+
+    if (button.dataset.action === "insert") insertAssetReference(asset);
+    if (button.dataset.action === "rename") renameAsset(asset);
+    if (button.dataset.action === "remove") removeAsset(asset);
+  }
+
+  function insertAssetReference(asset) {
+    insertAtCursor(`\n![${asset.filename}](${asset.path})\n`);
+  }
+
+  function renameAsset(asset) {
+    const nextName = window.prompt("New asset filename", asset.filename);
+    if (!nextName) return;
+    if (sanitizeFilename(nextName) === asset.filename) return;
+    const nextPath = uniqueAssetPath(nextName);
+    if (nextPath === asset.path) return;
+
+    const oldPath = asset.path;
+    const usage = markdownAssetCount(state.markdown, oldPath);
+    state.project.assets.delete(asset.path);
+    state.project.assets.set(nextPath, {
+      ...asset,
+      path: nextPath,
+      filename: nextPath.split("/").pop(),
+      id: createAssetId(nextPath, asset.hash),
+    });
+    syncProjectFromDeck();
+    updateMarkdownAfterAssetRename(oldPath, nextPath);
+    elements.status.textContent = `Renamed asset to ${nextPath}${usage ? ` and updated ${usage} reference${usage === 1 ? "" : "s"}` : ""}.`;
+    elements.status.classList.remove("warning");
+  }
+
+  function removeAsset(asset) {
+    const usage = countAssetUsage(state.markdown).get(asset.path) || 0;
+    if (usage > 0 && !window.confirm(`This asset is referenced ${usage} time${usage === 1 ? "" : "s"}. Remove it anyway?`)) {
+      return;
+    }
+    state.project.assets.delete(asset.path);
+    syncProjectFromDeck();
+    render();
+    scheduleProjectSave();
+    elements.status.textContent = usage
+      ? `Removed ${asset.filename}; ${usage} reference${usage === 1 ? "" : "s"} now unresolved.`
+      : `Removed ${asset.filename}.`;
+    elements.status.classList.toggle("warning", usage > 0);
+  }
+
+  function createAssetId(path, hash) {
+    return `asset-${hash}-${slugify(path.split("/").pop() || "file")}`;
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function setMenuOpen(button, menu, open) {
+    menu.hidden = !open;
+    button.setAttribute("aria-expanded", String(open));
+  }
+
+  function closeToolbarMenus() {
+    setMenuOpen(elements.importMenuButton, elements.importMenuOptions, false);
+    setMenuOpen(elements.exportMenuButton, elements.exportMenuOptions, false);
+    setMenuOpen(elements.presentMenuButton, elements.presentMenuOptions, false);
+  }
+
+  function toggleToolbarMenu(button, menu) {
+    const shouldOpen = menu.hidden;
+    closeToolbarMenus();
+    setMenuOpen(button, menu, shouldOpen);
   }
 
   function insertAtCursor(text) {
@@ -1041,12 +1804,48 @@ The preview is designed as a print page first, then scaled for screen reading.
 
   elements.editor.addEventListener("drop", handleDrop);
   elements.editor.addEventListener("dragover", (event) => event.preventDefault());
+  elements.newDeck.addEventListener("click", requestNewDeck);
+  elements.newDeckConfirm.addEventListener("click", confirmNewDeck);
+  elements.newDeckCancel.addEventListener("click", closeNewDeckDialog);
+  elements.newDeckDialog.addEventListener("click", (event) => {
+    if (event.target === elements.newDeckDialog) closeNewDeckDialog();
+  });
   elements.importFile.addEventListener("change", (event) => {
     const file = event.target.files[0];
     if (file) importFile(file);
     event.target.value = "";
+    closeToolbarMenus();
   });
-  elements.exportMd.addEventListener("click", exportMarkdown);
+  elements.importProject.addEventListener("change", (event) => {
+    if (event.target.files.length) importProjectFiles(event.target.files);
+    event.target.value = "";
+    closeToolbarMenus();
+  });
+  elements.assetImport.addEventListener("change", (event) => {
+    if (event.target.files.length) importAssetFiles(event.target.files);
+    event.target.value = "";
+  });
+  elements.assetList.addEventListener("click", handleAssetAction);
+  elements.assetSort.addEventListener("change", (event) => {
+    state.assetSort = event.target.value;
+    renderAssetPanel();
+  });
+  elements.importMenuButton.addEventListener("click", () => {
+    toggleToolbarMenu(elements.importMenuButton, elements.importMenuOptions);
+  });
+  elements.projectize.addEventListener("click", openProjectizeDialog);
+  elements.projectizeConfirm.addEventListener("click", confirmProjectize);
+  elements.projectizeCancel.addEventListener("click", closeProjectizeDialog);
+  elements.projectizeDialog.addEventListener("click", (event) => {
+    if (event.target === elements.projectizeDialog) closeProjectizeDialog();
+  });
+  elements.exportMd.addEventListener("click", () => {
+    exportMarkdown();
+    closeToolbarMenus();
+  });
+  elements.exportMenuButton.addEventListener("click", () => {
+    toggleToolbarMenu(elements.exportMenuButton, elements.exportMenuOptions);
+  });
   elements.autoSplit.addEventListener("click", autoSplitMarkdown);
   elements.autoSplitAccept.addEventListener("click", acceptAutoSplit);
   elements.autoSplitCancel.addEventListener("click", closeAutoSplitDialog);
@@ -1063,20 +1862,19 @@ The preview is designed as a print page first, then scaled for screen reading.
     clearTimeout(updateTimer);
     updateTimer = window.setTimeout(() => setCustomCss(elements.customCssEditor.value), 250);
   });
-  elements.printPdf.addEventListener("click", () => window.print());
+  elements.printPdf.addEventListener("click", () => {
+    closeToolbarMenus();
+    window.print();
+  });
   elements.presentMenuButton.addEventListener("click", () => {
-    const isOpen = !elements.presentMenuOptions.hidden;
-    elements.presentMenuOptions.hidden = isOpen;
-    elements.presentMenuButton.setAttribute("aria-expanded", String(!isOpen));
+    toggleToolbarMenu(elements.presentMenuButton, elements.presentMenuOptions);
   });
   elements.presentMirror.addEventListener("click", () => {
-    elements.presentMenuOptions.hidden = true;
-    elements.presentMenuButton.setAttribute("aria-expanded", "false");
+    closeToolbarMenus();
     openPresentation("mirror");
   });
   elements.presentSpeaker.addEventListener("click", () => {
-    elements.presentMenuOptions.hidden = true;
-    elements.presentMenuButton.setAttribute("aria-expanded", "false");
+    closeToolbarMenus();
     openPresentation("presenter");
   });
   elements.exitPresent.addEventListener("click", closePresentation);
@@ -1102,16 +1900,15 @@ The preview is designed as a print page first, then scaled for screen reading.
     requestAnimationFrame(detectSlideOverflow);
   });
   window.addEventListener("click", (event) => {
-    if (!event.target.closest(".present-menu")) {
-      elements.presentMenuOptions.hidden = true;
-      elements.presentMenuButton.setAttribute("aria-expanded", "false");
-    }
+    if (!event.target.closest(".toolbar-menu")) closeToolbarMenus();
   });
   window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !state.presentationOpen && !elements.newDeckDialog.hidden) closeNewDeckDialog();
+    if (event.key === "Escape" && !state.presentationOpen && !elements.projectizeDialog.hidden) closeProjectizeDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.autoSplitDialog.hidden) closeAutoSplitDialog();
     if (event.key === "Escape" && state.presentationOpen) closePresentation();
     if (event.key === "ArrowRight" || event.key === "PageDown") movePresentation(1);
     if (event.key === "ArrowLeft" || event.key === "PageUp") movePresentation(-1);
   });
 
-  update();
+  initializeProjectStorage();

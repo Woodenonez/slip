@@ -12,19 +12,38 @@
         <div class="brand">
           <strong>Slip</strong>
           <span id="deck-title">Untitled deck</span>
+          <span id="project-mode" class="project-mode">Single file</span>
         </div>
         <div class="toolbar-actions">
-          <label class="file-button">
-            Import
-            <input id="import-file" type="file" accept=".md,.markdown,text/markdown,text/plain">
-          </label>
-          <button id="export-md" type="button">Export MD</button>
+          <button id="new-deck" type="button">New</button>
+          <div class="toolbar-menu">
+            <button id="import-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false">Import</button>
+            <div id="import-menu-options" class="toolbar-menu-options" hidden>
+              <label class="menu-file-option">
+                File
+                <input id="import-file" type="file" accept=".md,.markdown,text/markdown,text/plain">
+              </label>
+              <label class="menu-file-option">
+                Project
+                <input id="import-project" type="file" webkitdirectory multiple>
+              </label>
+            </div>
+          </div>
+          <div class="toolbar-menu">
+            <button id="export-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false">Export</button>
+            <div id="export-menu-options" class="toolbar-menu-options" hidden>
+              <button id="export-md" type="button">Markdown</button>
+              <button id="print-pdf" type="button">PDF</button>
+            </div>
+          </div>
+          <span class="toolbar-divider" aria-hidden="true">|</span>
+          <button id="projectize" type="button">Projectize</button>
           <button id="auto-split" type="button">Auto Split</button>
           <button id="custom-css-toggle" type="button">CSS</button>
-          <button id="print-pdf" type="button">Print / PDF</button>
-          <div class="present-menu">
-            <button id="present-menu-button" type="button" aria-haspopup="true" aria-expanded="false">Present</button>
-            <div id="present-menu-options" class="present-menu-options" hidden>
+          <span class="toolbar-divider" aria-hidden="true">|</span>
+          <div class="toolbar-menu">
+            <button id="present-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false">Present</button>
+            <div id="present-menu-options" class="toolbar-menu-options" hidden>
               <button id="present-mirror" type="button">Mirror Mode</button>
               <button id="present-speaker" type="button">Presenter Mode</button>
             </div>
@@ -65,6 +84,24 @@
           </div>
           <div id="preview" class="preview"></div>
         </section>
+
+        <aside id="asset-panel" class="asset-panel" aria-label="Project assets">
+          <div class="pane-header">
+            <span>Assets</span>
+            <select id="asset-sort" aria-label="Sort assets">
+              <option value="name">Name</option>
+              <option value="size">Size</option>
+              <option value="usage">Usage</option>
+            </select>
+          </div>
+          <div class="asset-actions">
+            <label class="asset-import">
+              Add Asset
+              <input id="asset-import" type="file" multiple>
+            </label>
+          </div>
+          <div id="asset-list" class="asset-list"></div>
+        </aside>
       </main>
     </div>
 
@@ -89,6 +126,36 @@
         </div>
         <footer class="dialog-footer">
           <button id="auto-split-accept" type="button">Accept Split</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="projectize-dialog" class="dialog-backdrop" aria-label="Confirm projectize" hidden>
+      <div class="dialog confirm-dialog">
+        <header class="dialog-header">
+          <h2>Projectize Deck</h2>
+          <button id="projectize-cancel" type="button" aria-label="Cancel projectize">Cancel</button>
+        </header>
+        <div class="dialog-body">
+          <p class="dialog-summary">This operation cannot be reverted. Continue converting this deck into project mode?</p>
+        </div>
+        <footer class="dialog-footer">
+          <button id="projectize-confirm" type="button">Confirm</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="new-deck-dialog" class="dialog-backdrop" aria-label="Confirm new deck" hidden>
+      <div class="dialog confirm-dialog">
+        <header class="dialog-header">
+          <h2>New Deck</h2>
+          <button id="new-deck-cancel" type="button" aria-label="Cancel new deck">Cancel</button>
+        </header>
+        <div class="dialog-body">
+          <p id="new-deck-message" class="dialog-summary"></p>
+        </div>
+        <footer class="dialog-footer">
+          <button id="new-deck-confirm" type="button">Confirm</button>
         </footer>
       </div>
     </section>

@@ -9,7 +9,8 @@
     "check": "node --check app.js",
     "release:check": "npm run check && npm run build && npm run test:v1",
     "test": "playwright test",
-    "test:v1": "playwright test tests/v1-regression.spec.js"
+    "test:v1": "playwright test tests/v1-regression.spec.js",
+    "test:v2": "playwright test tests/v2-project-model.spec.js"
   },
   "keywords": [],
   "author": "",

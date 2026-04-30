@@ -19,6 +19,7 @@ Slip is a Vite-powered single-page Markdown slide editor:
 - `npm run preview`: serve the production build locally.
 - `npm run check`: run `node --check app.js` for JavaScript syntax validation.
 - `npm run test:v1`: run Playwright V1 browser regressions.
+- `npm run test:v2`: run Playwright V2 project model regressions.
 - `npm run release:check`: run syntax, production build, and V1 regressions.
 
 After a user-visible change, run `npm run check`, `npm run build`, and relevant tests. For V1 release readiness, use `npm run release:check`.
@@ -35,10 +36,10 @@ Playwright covers V1 browser regressions. Current required checks are:
 
 - `npm run check`
 - `npm run build`
-- `npm run test:v1`
+- `npm run test:v1` or a narrower relevant V2 test such as `npm run test:v2`
 - Manual browser validation at `http://127.0.0.1:5173/` when UI changed
 
-For parser changes, test frontmatter, `---`, notes, custom CSS, code blocks, and KaTeX math.
+For parser changes, test frontmatter, `---`, notes, custom CSS, code blocks, and KaTeX math. For V2 project-mode changes, test import, migration, IndexedDB restore, asset panel behavior, reference rewriting, and missing-asset recovery.
 
 ## Commit & Pull Request Guidelines
 
