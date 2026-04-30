@@ -1,6 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import JSZip from "jszip";
 
 async function waitForStoredProject(page) {
   await expect.poll(() => page.evaluate(() => new Promise((resolve) => {
@@ -29,12 +30,19 @@ async function waitForStoredProject(page) {
   }))).toBe(true);
 }
 
-test("imports a V2 project folder and resolves asset references", async ({ page }, testInfo) => {
-  const projectDir = testInfo.outputPath("project");
-  const assetsDir = path.join(projectDir, "assets");
-  await mkdir(assetsDir, { recursive: true });
+async function writeProjectPackage(packagePath, { markdown, manifest, assets }) {
+  const zip = new JSZip();
+  zip.file("slides.md", markdown);
+  zip.file("config.json", JSON.stringify(manifest, null, 2));
+  assets.forEach((asset) => {
+    zip.file(asset.path, asset.content);
+  });
+  await writeFile(packagePath, await zip.generateAsync({ type: "nodebuffer" }));
+}
 
-  await writeFile(path.join(projectDir, "slides.md"), `---
+test("imports a V2 project package and resolves asset references", async ({ page }, testInfo) => {
+  const packagePath = testInfo.outputPath("project.zip");
+  const markdown = `---
 title: Project Deck
 theme: clean
 size: widescreen
@@ -43,32 +51,36 @@ size: widescreen
 # Project Slide
 
 ![Imported asset](assets/example.svg)
-`);
-  await writeFile(path.join(projectDir, "config.json"), JSON.stringify({
-    schema: "slip.project",
-    version: 2,
-    title: "Project Deck",
-    theme: "clean",
-    size: "widescreen",
-    entry: "slides.md",
-    assets: [
-      {
-        id: "asset-existing",
-        path: "assets/example.svg",
-        filename: "example.svg",
-        mime: "image/svg+xml",
-        size: 0,
-        hash: "existing",
-      },
-    ],
-  }));
-  await writeFile(path.join(assetsDir, "example.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80">
+`;
+  const assetContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80">
   <rect width="200" height="80" fill="#e5f2ef"/>
   <text x="100" y="48" text-anchor="middle" font-family="Arial" font-size="20">Asset</text>
-</svg>`);
+</svg>`;
+  await writeProjectPackage(packagePath, {
+    markdown,
+    manifest: {
+      schema: "slip.project",
+      version: 2,
+      title: "Project Deck",
+      theme: "clean",
+      size: "widescreen",
+      entry: "slides.md",
+      assets: [
+        {
+          id: "asset-existing",
+          path: "assets/example.svg",
+          filename: "example.svg",
+          mime: "image/svg+xml",
+          size: 0,
+          hash: "existing",
+        },
+      ],
+    },
+    assets: [{ path: "assets/example.svg", content: assetContent }],
+  });
 
   await page.goto("/");
-  await page.locator("#import-project").setInputFiles(projectDir);
+  await page.locator("#import-package").setInputFiles(packagePath);
 
   await expect(page.locator("#project-mode")).toHaveText("Project");
   await expect(page.locator("#deck-title")).toHaveText("Project Deck");
@@ -111,11 +123,8 @@ Single-file content remains editable.`;
 });
 
 test("restores a project with a missing asset record and reports recovery warning", async ({ page }, testInfo) => {
-  const projectDir = testInfo.outputPath("project");
-  const assetsDir = path.join(projectDir, "assets");
-  await mkdir(assetsDir, { recursive: true });
-
-  await writeFile(path.join(projectDir, "slides.md"), `---
+  const packagePath = testInfo.outputPath("recovery.zip");
+  const markdown = `---
 title: Recovery Deck
 theme: clean
 size: widescreen
@@ -124,31 +133,37 @@ size: widescreen
 # Recovery
 
 ![Missing later](assets/example.svg)
-`);
-  await writeFile(path.join(projectDir, "config.json"), JSON.stringify({
-    schema: "slip.project",
-    version: 2,
-    title: "Recovery Deck",
-    theme: "clean",
-    size: "widescreen",
-    entry: "slides.md",
-    assets: [
-      {
-        id: "asset-missing-later",
-        path: "assets/example.svg",
-        filename: "example.svg",
-        mime: "image/svg+xml",
-        size: 0,
-        hash: "existing",
-      },
-    ],
-  }));
-  await writeFile(path.join(assetsDir, "example.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60">
+`;
+  await writeProjectPackage(packagePath, {
+    markdown,
+    manifest: {
+      schema: "slip.project",
+      version: 2,
+      title: "Recovery Deck",
+      theme: "clean",
+      size: "widescreen",
+      entry: "slides.md",
+      assets: [
+        {
+          id: "asset-missing-later",
+          path: "assets/example.svg",
+          filename: "example.svg",
+          mime: "image/svg+xml",
+          size: 0,
+          hash: "existing",
+        },
+      ],
+    },
+    assets: [{
+      path: "assets/example.svg",
+      content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60">
   <text x="60" y="34" text-anchor="middle">Asset</text>
-</svg>`);
+</svg>`,
+    }],
+  });
 
   await page.goto("/");
-  await page.locator("#import-project").setInputFiles(projectDir);
+  await page.locator("#import-package").setInputFiles(packagePath);
   await waitForStoredProject(page);
   await page.evaluate(() => new Promise((resolve, reject) => {
     const request = indexedDB.open("slip-project-vfs", 1);
@@ -213,4 +228,213 @@ size: widescreen
   await expect(page.locator('[data-asset-path="assets/renamed-a.svg"]')).toHaveCount(0);
   await expect(page.locator("#status")).toContainText("Unresolved asset reference: assets/renamed-a.svg.");
   await expect(page.locator(".missing-asset")).toContainText("assets/renamed-a.svg");
+});
+
+test("exports and imports a structured project package", async ({ page }, testInfo) => {
+  const assetDir = testInfo.outputPath("package-assets");
+  await mkdir(assetDir, { recursive: true });
+  const assetPath = path.join(assetDir, "package.svg");
+  await writeFile(assetPath, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60">
+  <text x="60" y="34" text-anchor="middle">Package</text>
+</svg>`);
+
+  await page.addInitScript(() => {
+    window.localStorage.setItem("slip.markdown", `---
+title: Package Deck
+theme: clean
+size: widescreen
+---
+
+# Package
+`);
+  });
+  await page.goto("/");
+  await page.locator("#projectize").click();
+  await page.locator("#projectize-confirm").click();
+  await page.locator("#asset-import").setInputFiles(assetPath);
+  await page.locator(".cm-content").click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+End" : "Control+End");
+  await page.locator('[data-asset-path="assets/package.svg"] [data-action="insert"]').click();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#export-menu-button").click();
+  await page.locator("#export-project-package").click();
+  const download = await downloadPromise;
+  const packagePath = testInfo.outputPath("package-deck.zip");
+  await download.saveAs(packagePath);
+
+  const zip = await JSZip.loadAsync(await readFile(packagePath));
+  expect(zip.file("slides.md")).toBeTruthy();
+  expect(zip.file("config.json")).toBeTruthy();
+  expect(zip.file("assets/package.svg")).toBeTruthy();
+
+  await page.locator("#new-deck").click();
+  await page.locator("#new-deck-confirm").click();
+  await page.locator("#import-package").setInputFiles(packagePath);
+
+  await expect(page.locator("#project-mode")).toHaveText("Project");
+  await expect(page.locator("#deck-title")).toHaveText("Package Deck");
+  await expect(page.locator(".slide img")).toHaveAttribute("src", /^data:image\/svg\+xml;base64,/);
+});
+
+test("exports self-contained markdown with project assets inlined", async ({ page }, testInfo) => {
+  const assetDir = testInfo.outputPath("self-contained-assets");
+  await mkdir(assetDir, { recursive: true });
+  const assetPath = path.join(assetDir, "inline.svg");
+  await writeFile(assetPath, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60">
+  <text x="60" y="34" text-anchor="middle">Inline</text>
+</svg>`);
+
+  await page.addInitScript(() => {
+    window.localStorage.setItem("slip.markdown", `---
+title: Inline Deck
+theme: clean
+size: widescreen
+---
+
+# Inline
+`);
+  });
+  await page.goto("/");
+  await page.locator("#projectize").click();
+  await page.locator("#projectize-confirm").click();
+  await page.locator("#asset-import").setInputFiles(assetPath);
+  await page.locator(".cm-content").click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+End" : "Control+End");
+  await page.locator('[data-asset-path="assets/inline.svg"] [data-action="insert"]').click();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#export-menu-button").click();
+  await page.locator("#export-self-contained-md").click();
+  const download = await downloadPromise;
+  const markdownPath = testInfo.outputPath("inline-self-contained.md");
+  await download.saveAs(markdownPath);
+
+  const exported = await readFile(markdownPath, "utf8");
+  expect(exported).toContain("data:image/svg+xml;base64,");
+  expect(exported).not.toContain("assets/inline.svg");
+
+  await page.locator("#new-deck").click();
+  await page.locator("#new-deck-confirm").click();
+  await page.locator("#import-file").setInputFiles(markdownPath);
+  await expect(page.locator("#project-mode")).toHaveText("Single file");
+  await expect(page.locator("#deck-title")).toHaveText("Inline Deck");
+  await expect(page.locator(".slide img")).toHaveAttribute("src", /^data:image\/svg\+xml;base64,/);
+});
+
+test("refuses embedded markdown when image size limits are exceeded", async ({ page }, testInfo) => {
+  const assetDir = testInfo.outputPath("large-assets");
+  await mkdir(assetDir, { recursive: true });
+  const oversizedAsset = path.join(assetDir, "oversized.svg");
+  await writeFile(oversizedAsset, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <desc>${"x".repeat(360 * 1024)}</desc>
+</svg>`);
+
+  await page.addInitScript(() => {
+    window.localStorage.setItem("slip.markdown", `---
+title: Large Asset Deck
+theme: clean
+size: widescreen
+---
+
+# Large Asset
+`);
+  });
+  await page.goto("/");
+  await page.locator("#projectize").click();
+  await page.locator("#projectize-confirm").click();
+  await page.locator("#asset-import").setInputFiles(oversizedAsset);
+  await page.locator(".cm-content").click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+End" : "Control+End");
+  await page.locator('[data-asset-path="assets/oversized.svg"] [data-action="insert"]').click();
+
+  await page.locator("#export-menu-button").click();
+  await page.locator("#export-self-contained-md").click();
+
+  await expect(page.locator("#embedded-export-dialog")).toBeVisible();
+  await expect(page.locator("#embedded-export-dialog")).toContainText("Embedded Markdown export refused: assets/oversized.svg");
+  await expect(page.locator("#embedded-export-dialog")).toContainText("above the 350 KB per-image limit");
+  await page.locator("#embedded-export-ok").click();
+  await expect(page.locator("#embedded-export-dialog")).toBeHidden();
+});
+
+test("refuses embedded markdown when total image size limit is exceeded", async ({ page }, testInfo) => {
+  const assetDir = testInfo.outputPath("total-large-assets");
+  await mkdir(assetDir, { recursive: true });
+  const assets = [];
+  for (let index = 1; index <= 5; index += 1) {
+    const assetPath = path.join(assetDir, `total-${index}.svg`);
+    await writeFile(assetPath, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <desc>${"x".repeat(320 * 1024)}</desc>
+</svg>`);
+    assets.push(assetPath);
+  }
+
+  await page.addInitScript(() => {
+    window.localStorage.setItem("slip.markdown", `---
+title: Total Asset Deck
+theme: clean
+size: widescreen
+---
+
+# Total Asset
+`);
+  });
+  await page.goto("/");
+  await page.locator("#projectize").click();
+  await page.locator("#projectize-confirm").click();
+  await page.locator("#asset-import").setInputFiles(assets);
+  await page.locator(".cm-content").click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+End" : "Control+End");
+  for (let index = 1; index <= 5; index += 1) {
+    await page.locator(`[data-asset-path="assets/total-${index}.svg"] [data-action="insert"]`).click();
+  }
+
+  await page.locator("#export-menu-button").click();
+  await page.locator("#export-self-contained-md").click();
+
+  await expect(page.locator("#embedded-export-dialog")).toBeVisible();
+  await expect(page.locator("#embedded-export-dialog")).toContainText("Embedded Markdown export refused: total image size");
+  await expect(page.locator("#embedded-export-dialog")).toContainText("above the 1.5 MB limit");
+  await page.locator("#embedded-export-close").click();
+  await expect(page.locator("#embedded-export-dialog")).toBeHidden();
+});
+
+test("keeps large projects responsive with lazy asset panel rendering", async ({ page }, testInfo) => {
+  const assetDir = testInfo.outputPath("stress-assets");
+  await mkdir(assetDir, { recursive: true });
+  const assets = [];
+  for (let index = 1; index <= 200; index += 1) {
+    const assetPath = path.join(assetDir, `asset-${String(index).padStart(3, "0")}.svg`);
+    await writeFile(assetPath, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 40">
+  <text x="40" y="24" text-anchor="middle">${index}</text>
+</svg>`);
+    assets.push(assetPath);
+  }
+
+  const slides = Array.from({ length: 120 }, (_item, index) => `## Slide ${index + 1}\n\nContent ${index + 1}`).join("\n\n---\n\n");
+  await page.addInitScript((markdown) => {
+    window.localStorage.setItem("slip.markdown", markdown);
+  }, `---
+title: Stress Deck
+theme: clean
+size: widescreen
+---
+
+${slides}
+`);
+
+  await page.goto("/");
+  await expect(page.locator(".slide")).toHaveCount(120);
+  await page.locator("#projectize").click();
+  await page.locator("#projectize-confirm").click();
+  await page.locator("#asset-import").setInputFiles(assets);
+
+  await expect(page.locator(".asset-item")).toHaveCount(60);
+  await expect(page.locator(".asset-show-more")).toContainText("Show 60 more assets");
+  await expect(page.locator(".asset-thumb img")).toHaveCount(60);
+
+  await page.locator(".asset-show-more").click();
+  await expect(page.locator(".asset-item")).toHaveCount(120);
+  await expect(page.locator(".asset-show-more")).toContainText("Show 60 more assets");
 });

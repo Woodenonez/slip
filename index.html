@@ -24,15 +24,17 @@
                 <input id="import-file" type="file" accept=".md,.markdown,text/markdown,text/plain">
               </label>
               <label class="menu-file-option">
-                Project
-                <input id="import-project" type="file" webkitdirectory multiple>
+                Package
+                <input id="import-package" type="file" accept=".zip,application/zip">
               </label>
             </div>
           </div>
           <div class="toolbar-menu">
             <button id="export-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false">Export</button>
             <div id="export-menu-options" class="toolbar-menu-options" hidden>
-              <button id="export-md" type="button">Markdown</button>
+              <button id="export-md" type="button">Markdown (plain)</button>
+              <button id="export-self-contained-md" type="button">Markdown (embedded)</button>
+              <button id="export-project-package" type="button">Project Package</button>
               <button id="print-pdf" type="button">PDF</button>
             </div>
           </div>
@@ -156,6 +158,21 @@
         </div>
         <footer class="dialog-footer">
           <button id="new-deck-confirm" type="button">Confirm</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="embedded-export-dialog" class="dialog-backdrop" aria-label="Embedded markdown export warning" hidden>
+      <div class="dialog confirm-dialog">
+        <header class="dialog-header">
+          <h2>Embedded Export</h2>
+          <button id="embedded-export-close" type="button" aria-label="Close embedded export warning">Close</button>
+        </header>
+        <div class="dialog-body">
+          <p id="embedded-export-message" class="dialog-summary"></p>
+        </div>
+        <footer class="dialog-footer">
+          <button id="embedded-export-ok" type="button">OK</button>
         </footer>
       </div>
     </section>

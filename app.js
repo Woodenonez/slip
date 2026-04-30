@@ -48,6 +48,7 @@ import python from "highlight.js/lib/languages/python";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import "highlight.js/styles/github.css";
+import JSZip from "jszip";
 
 hljs.registerLanguage("bash", bash);
 hljs.registerLanguage("sh", bash);
@@ -148,6 +149,7 @@ End with the takeaway.
   };
 
   const initialProjectDocument = readLocalProjectSnapshot();
+  let slideParseCache = new Map();
 
   const state = {
     markdown: initialProjectDocument?.markdown || localStorage.getItem("slip.markdown") || sampleMarkdown,
@@ -169,6 +171,8 @@ End with the takeaway.
     previewKeys: new Map(),
     overflowSlides: new Set(),
     assetSort: "name",
+    assetVisibleLimit: 60,
+    assetThumbnailCache: new Map(),
   };
 
   const slideSizes = {
@@ -300,13 +304,17 @@ End with the takeaway.
     newDeckMessage: document.getElementById("new-deck-message"),
     newDeckConfirm: document.getElementById("new-deck-confirm"),
     newDeckCancel: document.getElementById("new-deck-cancel"),
+    embeddedExportDialog: document.getElementById("embedded-export-dialog"),
+    embeddedExportMessage: document.getElementById("embedded-export-message"),
+    embeddedExportClose: document.getElementById("embedded-export-close"),
+    embeddedExportOk: document.getElementById("embedded-export-ok"),
     themePicker: document.getElementById("theme-picker"),
     sizePicker: document.getElementById("size-picker"),
     showNotes: document.getElementById("show-notes"),
     importMenuButton: document.getElementById("import-menu-button"),
     importMenuOptions: document.getElementById("import-menu-options"),
     importFile: document.getElementById("import-file"),
-    importProject: document.getElementById("import-project"),
+    importPackage: document.getElementById("import-package"),
     projectize: document.getElementById("projectize"),
     projectizeDialog: document.getElementById("projectize-dialog"),
     projectizeConfirm: document.getElementById("projectize-confirm"),
@@ -314,6 +322,8 @@ End with the takeaway.
     exportMenuButton: document.getElementById("export-menu-button"),
     exportMenuOptions: document.getElementById("export-menu-options"),
     exportMd: document.getElementById("export-md"),
+    exportSelfContainedMd: document.getElementById("export-self-contained-md"),
+    exportProjectPackage: document.getElementById("export-project-package"),
     autoSplit: document.getElementById("auto-split"),
     customCssToggle: document.getElementById("custom-css-toggle"),
     customCssPanel: document.getElementById("custom-css-panel"),
@@ -408,20 +418,21 @@ End with the takeaway.
     const frontmatter = parseFrontmatter(normalized);
     const customCss = extractCustomCss(frontmatter.body);
     const rawSlides = splitSlides(customCss.body);
+    const nextSlideCache = new Map();
     const slides = rawSlides.map((source, index) => {
-      const noteParts = source.split(/\n\?\?\?\n?/);
-      const content = (noteParts.shift() || "").trim();
-      const notes = noteParts.join("\n???\n").trim();
+      const sourceHash = hashString(source);
+      const cached = slideParseCache.get(sourceHash);
+      const parsed = cached || parseSlideParts(source, sourceHash);
+      nextSlideCache.set(sourceHash, parsed);
       return {
         id: `slide-${index + 1}`,
         index,
         source,
-        content,
-        notes,
-        hash: hashString(`${content}\n???\n${notes}`),
-        title: extractTitle(content) || `Slide ${index + 1}`,
+        ...parsed,
+        title: parsed.title || `Slide ${index + 1}`,
       };
     });
+    slideParseCache = nextSlideCache;
 
     return {
       meta: {
@@ -432,6 +443,18 @@ End with the takeaway.
       customCss: customCss.css,
       slides: slides.length ? slides : [{ id: "slide-1", index: 0, source: "", content: "", notes: "", hash: hashString(""), title: "Slide 1" }],
       warnings: [...frontmatter.warnings, ...customCss.warnings],
+    };
+  }
+
+  function parseSlideParts(source, sourceHash = hashString(source)) {
+    const noteParts = source.split(/\n\?\?\?\n?/);
+    const content = (noteParts.shift() || "").trim();
+    const notes = noteParts.join("\n???\n").trim();
+    return {
+      content,
+      notes,
+      hash: hashString(`${sourceHash}:${content}\n???\n${notes}`),
+      title: extractTitle(content),
     };
   }
 
@@ -963,6 +986,7 @@ End with the takeaway.
       return;
     }
 
+    pruneAssetThumbnailCache();
     const usage = countAssetUsage(state.markdown);
     const duplicates = findDuplicateAssetHashes();
     const assets = sortAssets([...state.project.assets.values()], usage);
@@ -973,22 +997,59 @@ End with the takeaway.
     }
 
     elements.assetList.innerHTML = "";
-    assets.forEach((asset) => {
+    const visibleAssets = assets.slice(0, state.assetVisibleLimit);
+    visibleAssets.forEach((asset) => {
       const item = document.createElement("section");
       item.className = "asset-item";
       item.dataset.assetPath = asset.path;
       const useCount = usage.get(asset.path) || 0;
-      item.innerHTML = `<div class="asset-name" title="${escapeHtml(asset.filename)}">${escapeHtml(asset.filename)}</div>
-        <div class="asset-path" title="${escapeHtml(asset.path)}">${escapeHtml(asset.path)}</div>
-        <div class="asset-meta">${formatBytes(asset.size)} · used ${useCount} time${useCount === 1 ? "" : "s"}</div>
-        ${duplicates.has(asset.hash) ? '<div class="asset-duplicate">Duplicate content</div>' : ""}
-        <div class="asset-item-actions">
-          <button type="button" data-action="insert">Insert</button>
-          <button type="button" data-action="rename">Rename</button>
-          <button type="button" data-action="remove">Remove</button>
+      item.innerHTML = `${assetThumbnailHtml(asset)}
+        <div class="asset-details">
+          <div class="asset-name" title="${escapeHtml(asset.filename)}">${escapeHtml(asset.filename)}</div>
+          <div class="asset-path" title="${escapeHtml(asset.path)}">${escapeHtml(asset.path)}</div>
+          <div class="asset-meta">${formatBytes(asset.size)} · used ${useCount} time${useCount === 1 ? "" : "s"}</div>
+          ${duplicates.has(asset.hash) ? '<div class="asset-duplicate">Duplicate content</div>' : ""}
+          <div class="asset-item-actions">
+            <button type="button" data-action="insert">Insert</button>
+            <button type="button" data-action="rename">Rename</button>
+            <button type="button" data-action="remove">Remove</button>
+          </div>
         </div>`;
       elements.assetList.appendChild(item);
     });
+
+    if (visibleAssets.length < assets.length) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "asset-show-more";
+      button.dataset.action = "show-more-assets";
+      button.textContent = `Show ${Math.min(60, assets.length - visibleAssets.length)} more assets`;
+      elements.assetList.appendChild(button);
+    }
+  }
+
+  function resetAssetPanelPaging() {
+    state.assetVisibleLimit = 60;
+  }
+
+  function pruneAssetThumbnailCache() {
+    const validKeys = new Set([...state.project.assets.values()].map((asset) => `${asset.path}:${asset.hash}`));
+    state.assetThumbnailCache.forEach((_value, key) => {
+      if (!validKeys.has(key)) state.assetThumbnailCache.delete(key);
+    });
+  }
+
+  function assetThumbnailHtml(asset) {
+    if (!asset.mime.startsWith("image/")) {
+      return '<div class="asset-thumb asset-thumb-file" aria-hidden="true">File</div>';
+    }
+    const cacheKey = `${asset.path}:${asset.hash}`;
+    if (!state.assetThumbnailCache.has(cacheKey)) {
+      state.assetThumbnailCache.set(cacheKey, asset.dataUrl);
+    }
+    return `<div class="asset-thumb">
+      <img src="${escapeHtml(state.assetThumbnailCache.get(cacheKey))}" alt="" loading="lazy" decoding="async">
+    </div>`;
   }
 
   function countAssetUsage(markdown) {
@@ -1088,12 +1149,122 @@ End with the takeaway.
 
   function exportMarkdown() {
     const blob = new Blob([state.markdown], { type: "text/markdown;charset=utf-8" });
+    downloadBlob(blob, `${slugify(state.deck.meta.title)}.md`);
+  }
+
+  function exportSelfContainedMarkdown() {
+    if (state.project.mode !== "project") {
+      exportMarkdown();
+      return;
+    }
+
+    const result = inlineProjectAssetReferences(getEditorValue());
+    if (result.unresolved.length) {
+      openEmbeddedExportDialog(`Embedded Markdown export refused: unresolved asset reference${result.unresolved.length === 1 ? "" : "s"}: ${formatAssetReferenceList(result.unresolved)}.`);
+      return;
+    }
+
+    const sizeIssue = validateEmbeddedMarkdownSize(result.inlinedAssets);
+    if (sizeIssue) {
+      openEmbeddedExportDialog(sizeIssue);
+      return;
+    }
+
+    downloadBlob(new Blob([result.markdown], { type: "text/markdown;charset=utf-8" }), `${slugify(state.deck.meta.title)}-self-contained.md`);
+    elements.status.textContent = `Embedded Markdown exported with ${result.inlinedAssets.length} asset${result.inlinedAssets.length === 1 ? "" : "s"} inlined.`;
+    elements.status.classList.remove("warning");
+  }
+
+  function openEmbeddedExportDialog(message) {
+    elements.embeddedExportMessage.textContent = message;
+    elements.embeddedExportDialog.hidden = false;
+  }
+
+  function closeEmbeddedExportDialog() {
+    elements.embeddedExportDialog.hidden = true;
+  }
+
+  function validateEmbeddedMarkdownSize(assetPaths) {
+    const maxSingleImageBytes = 350 * 1024;
+    const maxTotalImageBytes = 1.5 * 1024 * 1024;
+    const imageAssets = assetPaths
+      .map((path) => state.project.assets.get(path))
+      .filter((asset) => asset && asset.mime.startsWith("image/"));
+    const oversized = imageAssets.find((asset) => asset.size > maxSingleImageBytes);
+    if (oversized) {
+      return `Embedded Markdown export refused: ${oversized.path} is ${formatBytes(oversized.size)}, above the 350 KB per-image limit.`;
+    }
+
+    const total = imageAssets.reduce((sum, asset) => sum + asset.size, 0);
+    if (total > maxTotalImageBytes) {
+      return `Embedded Markdown export refused: total image size is ${formatBytes(total)}, above the 1.5 MB limit.`;
+    }
+    return "";
+  }
+
+  function inlineProjectAssetReferences(markdown) {
+    const inlinedAssets = new Set();
+    const unresolved = new Set();
+    const nextMarkdown = markdown.replace(/(!?\[[^\]]*]\()([^)]+)(\))/g, (match, prefix, source, suffix) => {
+      const normalizedSource = normalizeAssetPath(unescapeHtml(source));
+      if (!normalizedSource.startsWith("assets/")) return match;
+      const asset = state.project.assets.get(normalizedSource);
+      if (!asset) {
+        unresolved.add(normalizedSource);
+        return match;
+      }
+      inlinedAssets.add(normalizedSource);
+      return `${prefix}${asset.dataUrl}${suffix}`;
+    });
+
+    return {
+      markdown: nextMarkdown,
+      inlinedAssets: [...inlinedAssets],
+      unresolved: [...unresolved],
+    };
+  }
+
+  async function exportProjectPackage() {
+    if (state.project.mode !== "project") {
+      elements.status.textContent = "Projectize or import a project before exporting a package.";
+      elements.status.classList.add("warning");
+      return;
+    }
+
+    try {
+      const zip = new JSZip();
+      syncProjectFromDeck();
+      zip.file("slides.md", getEditorValue());
+      zip.file("config.json", JSON.stringify(state.project.manifest, null, 2));
+      state.project.assets.forEach((asset) => {
+        const content = dataUrlToZipContent(asset.dataUrl);
+        zip.file(asset.path, content.data, { base64: content.base64 });
+      });
+
+      const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+      downloadBlob(blob, `${slugify(state.deck.meta.title)}.zip`);
+      elements.status.textContent = `Project package exported with ${state.project.assets.size} asset${state.project.assets.size === 1 ? "" : "s"}.`;
+      elements.status.classList.remove("warning");
+    } catch (error) {
+      elements.status.textContent = `Project package export failed: ${error.message}`;
+      elements.status.classList.add("warning");
+    }
+  }
+
+  function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${slugify(state.deck.meta.title)}.md`;
+    link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  function dataUrlToZipContent(dataUrl) {
+    const match = String(dataUrl).match(/^data:([^;,]+)?(;base64)?,(.*)$/);
+    if (!match) return { data: dataUrl, base64: false };
+    if (match[2]) return { data: match[3], base64: true };
+    return { data: decodeURIComponent(match[3]), base64: false };
   }
 
   function slugify(value) {
@@ -1126,6 +1297,7 @@ End with the takeaway.
 
   function confirmProjectize() {
     closeProjectizeDialog();
+    resetAssetPanelPaging();
     migrateCurrentDeckToProject();
   }
 
@@ -1170,6 +1342,9 @@ End with the takeaway.
     state.activeSlide = 0;
     state.overflowSlides = new Set();
     state.previewKeys = new Map();
+    state.assetThumbnailCache = new Map();
+    resetAssetPanelPaging();
+    slideParseCache = new Map();
     clearCurrentProjectStorage().catch((error) => {
       state.storageWarning = `Could not clear stored project: ${error.message}`;
     });
@@ -1590,43 +1765,85 @@ End with the takeaway.
     reader.readAsText(file);
   }
 
-  async function importProjectFiles(fileList) {
-    const files = [...fileList];
-    const slidesFile = findProjectFile(files, "slides.md");
-    if (!slidesFile) {
-      elements.status.textContent = "Project import needs /project/slides.md or slides.md.";
-      elements.status.classList.add("warning");
-      return;
-    }
-
+  async function importProjectPackage(file) {
     try {
-      const markdown = await slidesFile.text();
-      const manifestFile = findProjectFile(files, "config.json");
-      const manifest = manifestFile ? JSON.parse(await manifestFile.text()) : null;
-      const assetFiles = files.filter((file) => getProjectRelativePath(file).startsWith("assets/"));
-      const assetRecords = await Promise.all(assetFiles.map(readAssetRecord));
+      const zip = await JSZip.loadAsync(file);
+      const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+      const paths = entries.map((entry) => normalizePackageEntryPath(entry.name));
+      validateProjectPackagePaths(paths);
+
+      const slidesEntry = zip.file("slides.md");
+      const manifestEntry = zip.file("config.json");
+      if (!slidesEntry) throw new Error("Package must include slides.md at the root.");
+      if (!manifestEntry) throw new Error("Package must include config.json at the root.");
+
+      const markdown = await slidesEntry.async("text");
+      const manifest = JSON.parse(await manifestEntry.async("text"));
+      validateProjectPackageManifest(manifest, paths);
+
+      const assetRecords = await Promise.all(
+        manifest.assets.map(async (assetMeta) => {
+          const assetEntry = zip.file(assetMeta.path);
+          if (!assetEntry) throw new Error(`Missing asset file: ${assetMeta.path}.`);
+          const blob = await assetEntry.async("blob");
+          return createAssetRecordFromBlob(blob, assetMeta.path, assetMeta);
+        })
+      );
+
       state.project = createProjectFromMarkdown(markdown, assetRecords, manifest);
+      resetAssetPanelPaging();
       setEditorValue(markdown);
-      elements.status.textContent = `Project imported: ${assetRecords.length} asset${assetRecords.length === 1 ? "" : "s"} indexed.`;
+      elements.status.textContent = `Project package imported: ${assetRecords.length} asset${assetRecords.length === 1 ? "" : "s"} indexed.`;
       elements.status.classList.remove("warning");
     } catch (error) {
-      elements.status.textContent = `Project import failed: ${error.message}`;
+      elements.status.textContent = `Project package import failed: ${error.message}`;
       elements.status.classList.add("warning");
     }
   }
 
-  function findProjectFile(files, filename) {
-    return files.find((file) => getProjectRelativePath(file) === filename || getProjectRelativePath(file) === `project/${filename}`);
+  function normalizePackageEntryPath(path) {
+    return normalizeAssetPath(path).replace(/^\/+/, "");
   }
 
-  function getProjectRelativePath(file) {
-    const rawPath = file.webkitRelativePath || file.name;
-    const normalized = normalizeAssetPath(rawPath);
-    return normalized.replace(/^project\//, "");
+  function validateProjectPackagePaths(paths) {
+    const invalid = paths.find((path) => (
+      !path ||
+      path.startsWith("../") ||
+      path.includes("/../") ||
+      path === "." ||
+      path.includes("//") ||
+      (!["slides.md", "config.json"].includes(path) && !path.startsWith("assets/"))
+    ));
+    if (invalid) {
+      throw new Error(`Unsupported package entry: ${invalid}. Only slides.md, config.json, and assets/ files are allowed.`);
+    }
   }
 
-  async function readAssetRecord(file) {
-    return createAssetRecord(file, getProjectRelativePath(file));
+  function validateProjectPackageManifest(manifest, packagePaths) {
+    if (!manifest || typeof manifest !== "object") throw new Error("config.json must be a project manifest object.");
+    if (manifest.schema !== "slip.project") throw new Error("config.json schema must be slip.project.");
+    const version = Number(manifest.version);
+    if (!Number.isInteger(version) || version < 1) throw new Error("config.json version must be a positive integer.");
+    if (version > 2) throw new Error(`Project version ${manifest.version} is newer than this Slip build supports.`);
+    if (manifest.entry !== "slides.md") throw new Error("config.json entry must be slides.md.");
+    if (!Array.isArray(manifest.assets)) throw new Error("config.json assets must be an array.");
+
+    const invalidAsset = manifest.assets.find((asset) => (
+      !asset ||
+      typeof asset.path !== "string" ||
+      !asset.path.startsWith("assets/") ||
+      asset.path.includes("../")
+    ));
+    if (invalidAsset) throw new Error("Every config.json asset path must stay inside assets/.");
+
+    const assetPaths = new Set(manifest.assets.map((asset) => asset.path));
+    if (assetPaths.size !== manifest.assets.length) throw new Error("config.json contains duplicate asset paths.");
+
+    const extraAsset = packagePaths.find((path) => path.startsWith("assets/") && !assetPaths.has(path));
+    if (extraAsset) throw new Error(`Asset file is not listed in config.json: ${extraAsset}.`);
+
+    const missingAsset = [...assetPaths].find((path) => !packagePaths.includes(path));
+    if (missingAsset) throw new Error(`config.json lists a missing asset file: ${missingAsset}.`);
   }
 
   async function createAssetRecord(file, path) {
@@ -1641,6 +1858,23 @@ End with the takeaway.
       hash,
       dataUrl,
       lastModified: file.lastModified || 0,
+    };
+  }
+
+  async function createAssetRecordFromBlob(blob, path, metadata = {}) {
+    const filename = path.split("/").pop() || metadata.filename || "asset";
+    const mime = metadata.mime || blob.type || inferMimeType(filename);
+    const dataUrl = await readBlobAsDataUrl(blob.type === mime ? blob : new Blob([blob], { type: mime }));
+    const hash = hashString(dataUrl);
+    return {
+      id: metadata.id || createAssetId(path, hash),
+      path,
+      filename: metadata.filename || filename,
+      mime,
+      size: blob.size,
+      hash,
+      dataUrl,
+      lastModified: 0,
     };
   }
 
@@ -1660,6 +1894,7 @@ End with the takeaway.
     }));
 
     records.forEach((asset) => state.project.assets.set(asset.path, asset));
+    resetAssetPanelPaging();
     syncProjectFromDeck();
     render();
     scheduleProjectSave();
@@ -1696,6 +1931,11 @@ End with the takeaway.
   function handleAssetAction(event) {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
+    if (button.dataset.action === "show-more-assets") {
+      state.assetVisibleLimit += 60;
+      renderAssetPanel();
+      return;
+    }
     const item = button.closest(".asset-item");
     const asset = state.project.assets.get(item?.dataset.assetPath || "");
     if (!asset) return;
@@ -1759,6 +1999,25 @@ End with the takeaway.
     });
   }
 
+  function readBlobAsDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Could not read packaged asset."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function inferMimeType(filename) {
+    const extension = filename.toLowerCase().split(".").pop();
+    if (extension === "svg") return "image/svg+xml";
+    if (extension === "png") return "image/png";
+    if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+    if (extension === "gif") return "image/gif";
+    if (extension === "webp") return "image/webp";
+    return "application/octet-stream";
+  }
+
   function setMenuOpen(button, menu, open) {
     menu.hidden = !open;
     button.setAttribute("aria-expanded", String(open));
@@ -1816,8 +2075,9 @@ End with the takeaway.
     event.target.value = "";
     closeToolbarMenus();
   });
-  elements.importProject.addEventListener("change", (event) => {
-    if (event.target.files.length) importProjectFiles(event.target.files);
+  elements.importPackage.addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (file) importProjectPackage(file);
     event.target.value = "";
     closeToolbarMenus();
   });
@@ -1828,6 +2088,7 @@ End with the takeaway.
   elements.assetList.addEventListener("click", handleAssetAction);
   elements.assetSort.addEventListener("change", (event) => {
     state.assetSort = event.target.value;
+    resetAssetPanelPaging();
     renderAssetPanel();
   });
   elements.importMenuButton.addEventListener("click", () => {
@@ -1839,8 +2100,21 @@ End with the takeaway.
   elements.projectizeDialog.addEventListener("click", (event) => {
     if (event.target === elements.projectizeDialog) closeProjectizeDialog();
   });
+  elements.embeddedExportClose.addEventListener("click", closeEmbeddedExportDialog);
+  elements.embeddedExportOk.addEventListener("click", closeEmbeddedExportDialog);
+  elements.embeddedExportDialog.addEventListener("click", (event) => {
+    if (event.target === elements.embeddedExportDialog) closeEmbeddedExportDialog();
+  });
   elements.exportMd.addEventListener("click", () => {
     exportMarkdown();
+    closeToolbarMenus();
+  });
+  elements.exportSelfContainedMd.addEventListener("click", () => {
+    exportSelfContainedMarkdown();
+    closeToolbarMenus();
+  });
+  elements.exportProjectPackage.addEventListener("click", () => {
+    exportProjectPackage();
     closeToolbarMenus();
   });
   elements.exportMenuButton.addEventListener("click", () => {
@@ -1905,6 +2179,7 @@ End with the takeaway.
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !state.presentationOpen && !elements.newDeckDialog.hidden) closeNewDeckDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.projectizeDialog.hidden) closeProjectizeDialog();
+    if (event.key === "Escape" && !state.presentationOpen && !elements.embeddedExportDialog.hidden) closeEmbeddedExportDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.autoSplitDialog.hidden) closeAutoSplitDialog();
     if (event.key === "Escape" && state.presentationOpen) closePresentation();
     if (event.key === "ArrowRight" || event.key === "PageDown") movePresentation(1);

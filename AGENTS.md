@@ -20,9 +20,9 @@ Slip is a Vite-powered single-page Markdown slide editor:
 - `npm run check`: run `node --check app.js` for JavaScript syntax validation.
 - `npm run test:v1`: run Playwright V1 browser regressions.
 - `npm run test:v2`: run Playwright V2 project model regressions.
-- `npm run release:check`: run syntax, production build, and V1 regressions.
+- `npm run release:check`: run syntax, production build, V1 regressions, and V2 regressions.
 
-After a user-visible change, run `npm run check`, `npm run build`, and relevant tests. For V1 release readiness, use `npm run release:check`.
+After a user-visible change, run `npm run check`, `npm run build`, and relevant tests. For release readiness, use `npm run release:check`.
 
 ## Coding Style & Naming Conventions
 
@@ -39,7 +39,7 @@ Playwright covers V1 browser regressions. Current required checks are:
 - `npm run test:v1` or a narrower relevant V2 test such as `npm run test:v2`
 - Manual browser validation at `http://127.0.0.1:5173/` when UI changed
 
-For parser changes, test frontmatter, `---`, notes, custom CSS, code blocks, and KaTeX math. For V2 project-mode changes, test import, migration, IndexedDB restore, asset panel behavior, reference rewriting, and missing-asset recovery.
+For parser changes, test frontmatter, `---`, notes, custom CSS, code blocks, and KaTeX math. For V2 project-mode changes, test import, migration, IndexedDB restore, asset panel behavior, reference rewriting, project package round trips, self-contained Markdown export, large-project performance, and missing-asset recovery.
 
 ## Commit & Pull Request Guidelines
 
@@ -49,4 +49,4 @@ Pull requests should include a concise summary, verification commands, manual br
 
 ## Agent-Specific Instructions
 
-V1 is complete; do not start V1.5/V2 work without user confirmation. Mermaid support is deferred. If a requested change is risky, impractical, or likely to harm the project architecture, explain why and confirm before implementing.
+V1 and V2 are complete; do not start V2.5/V3 work without user confirmation. Mermaid support is deferred. If a requested change is risky, impractical, or likely to harm the project architecture, explain why and confirm before implementing.

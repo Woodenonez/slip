@@ -100,7 +100,7 @@
 
 # V2 Development
 
-V1 is finished and marked in `plan/v1_done.md`. Entries below track V2 work based on the current `plan/v2.md`.
+V1 is finished and marked in `plan/v1_done.md`. V2 is finished and marked in `plan/v2_done.md`.
 
 ## 2026-04-30 (1)
 
@@ -154,4 +154,41 @@ V1 is finished and marked in `plan/v1_done.md`. Entries below track V2 work base
 - Updated referenced-asset removal messaging to indicate when Markdown references become unresolved.
 - Updated README and AGENTS with reference rewriting and missing-asset expectations.
 - Expanded V2 browser regression coverage for referenced asset rename, Markdown rewrite, missing preview placeholders, and unresolved-reference messaging.
+- No new runtime or development dependencies were introduced.
+
+## 2026-04-30 (5)
+
+- Continued V2 with Step 5: project package import/export.
+- Added `Project Package` under Export to download project-mode decks as `.zip` files containing `slides.md`, `config.json`, and `assets/`.
+- Added `Package` under Import to restore structured Slip `.zip` project packages into project mode and browser storage.
+- Removed the older folder-based `Project` import menu option so project import/export uses the portable package path.
+- Added strict package validation for supported root entries, manifest schema/version, `slides.md` entry, and asset-file consistency.
+- Updated README and AGENTS with package workflow and testing expectations.
+- Expanded V2 browser regression coverage for `.zip` package export/import round trips.
+- Runtime dependency introduced: `jszip` for browser ZIP generation and parsing; it is dual-licensed `MIT OR GPL-3.0-or-later` and used under MIT terms.
+
+## 2026-04-30 (6)
+
+- Continued V2 with Step 6: optional self-contained Markdown export.
+- Added `Self-contained Markdown` under Export to inline project `assets/...` references as data URLs in a single `.md` file.
+- Added export blocking for unresolved project asset references so missing assets are not silently dropped.
+- Added hard image-size safeguards for embedded Markdown export.
+- Updated README and AGENTS with the self-contained export workflow and test expectations.
+- Expanded V2 browser regression coverage for exporting self-contained Markdown and re-importing it as a single-file deck.
+- No new runtime or development dependencies were introduced.
+- Renamed Export menu options to `Markdown (plain)` and `Markdown (embedded)`.
+- Refused embedded Markdown export when any image exceeds 350 KB or total images exceed 1.5 MB, including a specific warning reason.
+- Moved embedded Markdown refusal warnings into an in-app dialog matching the Projectize warning pattern instead of the lower status warning area.
+
+## 2026-04-30 (7)
+
+- Continued V2 with Step 7: performance hardening for large decks and asset sets.
+- Added slide-source parse caching so unchanged slide sources reuse parsed title/content/notes metadata across updates.
+- Added cached image thumbnails in the Assets panel with lazy image loading.
+- Added batched asset-list rendering so large projects initially render 60 assets and can reveal more in increments.
+- Added stale thumbnail-cache pruning after asset rename, removal, or project replacement.
+- Updated README and AGENTS with large-project performance expectations.
+- Expanded V2 browser regression coverage with a 120-slide, 200-asset project stress case.
+- Updated `npm run release:check` to include the V2 browser regression suite.
+- Renamed `plan/v2.md` to `plan/v2_done.md` to mark the V2 plan complete.
 - No new runtime or development dependencies were introduced.

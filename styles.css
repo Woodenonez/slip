@@ -296,12 +296,43 @@ button:disabled {
 
 .asset-item {
   display: grid;
-  gap: 7px;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 9px;
   padding: 9px;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
   margin-bottom: 8px;
   background: #fbfcfd;
+}
+
+.asset-thumb {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  background: #fff;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.asset-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.asset-thumb-file {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+.asset-details {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
 }
 
 .asset-name {
@@ -335,6 +366,16 @@ button:disabled {
   min-height: 28px;
   padding: 0 8px;
   font-size: 12px;
+}
+
+.asset-show-more {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
 }
 
 #editor {

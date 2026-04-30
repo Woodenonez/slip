@@ -7,7 +7,7 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "check": "node --check app.js",
-    "release:check": "npm run check && npm run build && npm run test:v1",
+    "release:check": "npm run check && npm run build && npm run test:v1 && npm run test:v2",
     "test": "playwright test",
     "test:v1": "playwright test tests/v1-regression.spec.js",
     "test:v2": "playwright test tests/v2-project-model.spec.js"
@@ -26,6 +26,7 @@
     "@codemirror/view": "^6.41.1",
     "@lezer/highlight": "^1.2.3",
     "highlight.js": "^11.11.1",
+    "jszip": "^3.10.1",
     "katex": "^0.16.45",
     "vite": "^8.0.10"
   },

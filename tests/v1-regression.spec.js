@@ -102,12 +102,14 @@ Menu actions should be grouped.`, 1);
   await page.locator("#import-menu-button").click();
   await expect(page.locator("#import-menu-options")).toBeVisible();
   await expect(page.locator("#import-menu-options")).toContainText("File");
-  await expect(page.locator("#import-menu-options")).toContainText("Project");
+  await expect(page.locator("#import-menu-options")).toContainText("Package");
 
   await page.locator("#export-menu-button").click();
   await expect(page.locator("#import-menu-options")).toBeHidden();
   await expect(page.locator("#export-menu-options")).toBeVisible();
-  await expect(page.locator("#export-menu-options")).toContainText("Markdown");
+  await expect(page.locator("#export-menu-options")).toContainText("Markdown (plain)");
+  await expect(page.locator("#export-menu-options")).toContainText("Markdown (embedded)");
+  await expect(page.locator("#export-menu-options")).toContainText("Project Package");
   await expect(page.locator("#export-menu-options")).toContainText("PDF");
 });
 
