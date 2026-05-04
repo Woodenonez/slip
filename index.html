@@ -12,60 +12,77 @@
         <div class="brand">
           <strong>Slip</strong>
           <span id="deck-title">Untitled deck</span>
-          <span id="project-mode" class="project-mode">Single file</span>
+          <span id="project-mode" class="project-mode" data-i18n="singleFile">Single file</span>
+          <span id="cloud-session-status" class="cloud-session-status" data-i18n="cloudSignedOut">Cloud: signed out</span>
         </div>
         <div class="toolbar-actions">
-          <button id="new-deck" type="button">New</button>
+          <button id="new-deck" type="button" data-i18n="new">New</button>
           <div class="toolbar-menu">
-            <button id="import-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false">Import</button>
+            <button id="cloud-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false" data-i18n="cloud">Cloud</button>
+            <div id="cloud-menu-options" class="toolbar-menu-options" hidden>
+              <button id="cloud-open" type="button" data-i18n="openFromCloud">Open From Cloud</button>
+              <button id="cloud-save" type="button" data-i18n="saveToCloud">Save</button>
+              <button id="cloud-save-as" type="button" data-i18n="saveAsCloud">Save As</button>
+              <button id="cloud-google" type="button" data-i18n="googleDrive">Google Drive</button>
+              <button id="cloud-microsoft" type="button" data-i18n="oneDrive">OneDrive</button>
+              <button id="cloud-disconnect" type="button" data-i18n="cloudDisconnect">Disconnect</button>
+            </div>
+          </div>
+          <span class="toolbar-divider" aria-hidden="true">|</span>
+          <div class="toolbar-menu">
+            <button id="import-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false" data-i18n="import">Import</button>
             <div id="import-menu-options" class="toolbar-menu-options" hidden>
-              <label class="menu-file-option">
+              <label class="menu-file-option" data-i18n="file">
                 File
                 <input id="import-file" type="file" accept=".md,.markdown,text/markdown,text/plain">
               </label>
-              <label class="menu-file-option">
+              <label class="menu-file-option" data-i18n="package">
                 Package
                 <input id="import-package" type="file" accept=".zip,application/zip">
               </label>
             </div>
           </div>
           <div class="toolbar-menu">
-            <button id="export-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false">Export</button>
+            <button id="export-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false" data-i18n="export">Export</button>
             <div id="export-menu-options" class="toolbar-menu-options" hidden>
-              <button id="export-md" type="button">Markdown (plain)</button>
-              <button id="export-self-contained-md" type="button">Markdown (embedded)</button>
-              <button id="export-project-package" type="button">Project Package</button>
-              <button id="print-pdf" type="button">PDF</button>
+              <button id="export-md" type="button" data-i18n="markdownPlain">Markdown (plain)</button>
+              <button id="export-self-contained-md" type="button" data-i18n="markdownEmbedded">Markdown (embedded)</button>
+              <button id="export-project-package" type="button" data-i18n="projectPackage">Project Package</button>
+              <button id="print-pdf" type="button" data-i18n="pdf">PDF</button>
             </div>
           </div>
           <span class="toolbar-divider" aria-hidden="true">|</span>
-          <button id="projectize" type="button">Projectize</button>
-          <button id="auto-split" type="button">Auto Split</button>
+          <button id="projectize" type="button" data-i18n="projectize">Projectize</button>
+          <button id="auto-split" type="button" data-i18n="autoSplit">Auto Split</button>
           <button id="custom-css-toggle" type="button">CSS</button>
           <span class="toolbar-divider" aria-hidden="true">|</span>
           <div class="toolbar-menu">
-            <button id="present-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false">Present</button>
+            <button id="present-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false" data-i18n="present">Present</button>
             <div id="present-menu-options" class="toolbar-menu-options" hidden>
-              <button id="present-mirror" type="button">Mirror Mode</button>
-              <button id="present-speaker" type="button">Presenter Mode</button>
+              <button id="present-mirror" type="button" data-i18n="mirrorMode">Mirror Mode</button>
+              <button id="present-speaker" type="button" data-i18n="presenterMode">Presenter Mode</button>
             </div>
           </div>
+          <select id="language-picker" aria-label="Language">
+            <option value="en">EN</option>
+            <option value="zh">中文</option>
+          </select>
         </div>
       </header>
 
       <main class="workspace">
         <aside class="outline" aria-label="Slide outline">
-          <div class="panel-title">Slides</div>
+          <div class="panel-title" data-i18n="slides">Slides</div>
           <ol id="outline-list"></ol>
         </aside>
 
         <section class="editor-pane" aria-label="Markdown editor">
           <div class="pane-header">
-            <span>Markdown</span>
+            <span data-i18n="markdown">Markdown</span>
             <select id="theme-picker" aria-label="Theme">
-              <option value="clean">Clean</option>
-              <option value="contrast">Contrast</option>
-              <option value="paper">Paper</option>
+              <option value="clean" data-i18n="clean">Clean</option>
+              <option value="contrast" data-i18n="contrast">Contrast</option>
+              <option value="paper" data-i18n="paper">Paper</option>
             </select>
             <select id="size-picker" aria-label="Slide size">
               <option value="widescreen">16:9</option>
@@ -78,10 +95,10 @@
 
         <section class="preview-pane" aria-label="Slide preview">
           <div class="pane-header">
-            <span>Preview</span>
+            <span data-i18n="preview">Preview</span>
             <label class="notes-toggle">
               <input id="show-notes" type="checkbox">
-              Notes
+              <span data-i18n="notes">Notes</span>
             </label>
           </div>
           <div id="preview" class="preview"></div>
@@ -89,15 +106,15 @@
 
         <aside id="asset-panel" class="asset-panel" aria-label="Project assets">
           <div class="pane-header">
-            <span>Assets</span>
+            <span data-i18n="assets">Assets</span>
             <select id="asset-sort" aria-label="Sort assets">
-              <option value="name">Name</option>
-              <option value="size">Size</option>
-              <option value="usage">Usage</option>
+              <option value="name" data-i18n="name">Name</option>
+              <option value="size" data-i18n="size">Size</option>
+              <option value="usage" data-i18n="usage">Usage</option>
             </select>
           </div>
           <div class="asset-actions">
-            <label class="asset-import">
+            <label class="asset-import" data-i18n="addAsset">
               Add Asset
               <input id="asset-import" type="file" multiple>
             </label>
@@ -109,8 +126,8 @@
 
     <section id="custom-css-panel" class="custom-css-panel" aria-label="Custom slide CSS" hidden>
       <div class="custom-css-header">
-        <h2>Slide CSS</h2>
-        <button id="custom-css-close" type="button" aria-label="Close custom CSS panel">Close</button>
+        <h2 data-i18n="slideCss">Slide CSS</h2>
+        <button id="custom-css-close" type="button" aria-label="Close custom CSS panel" data-i18n="close">Close</button>
       </div>
       <textarea id="custom-css-editor" spellcheck="false"></textarea>
       <p id="custom-css-status" class="custom-css-status" aria-live="polite"></p>
@@ -119,15 +136,15 @@
     <section id="auto-split-dialog" class="dialog-backdrop" aria-label="Review auto split" hidden>
       <div class="dialog">
         <header class="dialog-header">
-          <h2>Review Split</h2>
-          <button id="auto-split-cancel" type="button" aria-label="Cancel auto split">Cancel</button>
+          <h2 data-i18n="reviewSplit">Review Split</h2>
+          <button id="auto-split-cancel" type="button" aria-label="Cancel auto split" data-i18n="cancel">Cancel</button>
         </header>
         <div class="dialog-body">
           <p id="auto-split-summary" class="dialog-summary"></p>
           <ol id="auto-split-list" class="split-review-list"></ol>
         </div>
         <footer class="dialog-footer">
-          <button id="auto-split-accept" type="button">Accept Split</button>
+          <button id="auto-split-accept" type="button" data-i18n="acceptSplit">Accept Split</button>
         </footer>
       </div>
     </section>
@@ -135,14 +152,14 @@
     <section id="projectize-dialog" class="dialog-backdrop" aria-label="Confirm projectize" hidden>
       <div class="dialog confirm-dialog">
         <header class="dialog-header">
-          <h2>Projectize Deck</h2>
-          <button id="projectize-cancel" type="button" aria-label="Cancel projectize">Cancel</button>
+          <h2 data-i18n="projectizeDeck">Projectize Deck</h2>
+          <button id="projectize-cancel" type="button" aria-label="Cancel projectize" data-i18n="cancel">Cancel</button>
         </header>
         <div class="dialog-body">
-          <p class="dialog-summary">This operation cannot be reverted. Continue converting this deck into project mode?</p>
+          <p class="dialog-summary" data-i18n="projectizeWarning">This operation cannot be reverted. Continue converting this deck into project mode?</p>
         </div>
         <footer class="dialog-footer">
-          <button id="projectize-confirm" type="button">Confirm</button>
+          <button id="projectize-confirm" type="button" data-i18n="confirm">Confirm</button>
         </footer>
       </div>
     </section>
@@ -150,14 +167,14 @@
     <section id="new-deck-dialog" class="dialog-backdrop" aria-label="Confirm new deck" hidden>
       <div class="dialog confirm-dialog">
         <header class="dialog-header">
-          <h2>New Deck</h2>
-          <button id="new-deck-cancel" type="button" aria-label="Cancel new deck">Cancel</button>
+          <h2 data-i18n="newDeck">New Deck</h2>
+          <button id="new-deck-cancel" type="button" aria-label="Cancel new deck" data-i18n="cancel">Cancel</button>
         </header>
         <div class="dialog-body">
           <p id="new-deck-message" class="dialog-summary"></p>
         </div>
         <footer class="dialog-footer">
-          <button id="new-deck-confirm" type="button">Confirm</button>
+          <button id="new-deck-confirm" type="button" data-i18n="confirm">Confirm</button>
         </footer>
       </div>
     </section>
@@ -165,20 +182,99 @@
     <section id="embedded-export-dialog" class="dialog-backdrop" aria-label="Embedded markdown export warning" hidden>
       <div class="dialog confirm-dialog">
         <header class="dialog-header">
-          <h2>Embedded Export</h2>
-          <button id="embedded-export-close" type="button" aria-label="Close embedded export warning">Close</button>
+          <h2 data-i18n="embeddedExport">Embedded Export</h2>
+          <button id="embedded-export-close" type="button" aria-label="Close embedded export warning" data-i18n="close">Close</button>
         </header>
         <div class="dialog-body">
           <p id="embedded-export-message" class="dialog-summary"></p>
         </div>
         <footer class="dialog-footer">
-          <button id="embedded-export-ok" type="button">OK</button>
+          <button id="embedded-export-ok" type="button" data-i18n="ok">OK</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="cloud-auth-dialog" class="dialog-backdrop" aria-label="Cloud sign-in" hidden>
+      <div class="dialog confirm-dialog">
+        <header class="dialog-header">
+          <h2 data-i18n="cloudSignIn">Cloud Sign-in</h2>
+          <button id="cloud-auth-close" type="button" aria-label="Close cloud sign-in" data-i18n="close">Close</button>
+        </header>
+        <div class="dialog-body">
+          <p id="cloud-auth-message" class="dialog-summary"></p>
+        </div>
+        <footer class="dialog-footer">
+          <button id="cloud-auth-ok" type="button" data-i18n="ok">OK</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="cloud-open-dialog" class="dialog-backdrop" aria-label="Open from cloud" hidden>
+      <div class="dialog cloud-open-dialog">
+        <header class="dialog-header">
+          <h2 data-i18n="openFromCloud">Open From Cloud</h2>
+          <button id="cloud-open-close" type="button" aria-label="Close cloud picker" data-i18n="close">Close</button>
+        </header>
+        <div class="dialog-body">
+          <p id="cloud-open-summary" class="dialog-summary"></p>
+          <div class="cloud-picker-controls">
+            <input id="cloud-search" type="search" data-i18n-placeholder="cloudSearchPlaceholder" placeholder="Search cloud files">
+            <button id="cloud-search-button" type="button" data-i18n="search">Search</button>
+            <button id="cloud-refresh-button" type="button" data-i18n="refresh">Refresh</button>
+          </div>
+          <section class="cloud-picker-section">
+            <h3 data-i18n="recentCloudFiles">Recent</h3>
+            <div id="cloud-recent-list" class="cloud-file-list"></div>
+          </section>
+          <section class="cloud-picker-section">
+            <h3 data-i18n="cloudFiles">Files</h3>
+            <div id="cloud-file-list" class="cloud-file-list"></div>
+          </section>
+        </div>
+        <footer class="dialog-footer">
+          <button id="cloud-open-cancel" type="button" data-i18n="cancel">Cancel</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="cloud-save-dialog" class="dialog-backdrop" aria-label="Save to cloud" hidden>
+      <div class="dialog confirm-dialog">
+        <header class="dialog-header">
+          <h2 data-i18n="saveAsCloud">Save As</h2>
+          <button id="cloud-save-cancel" type="button" aria-label="Cancel cloud save" data-i18n="cancel">Cancel</button>
+        </header>
+        <div class="dialog-body">
+          <p id="cloud-save-summary" class="dialog-summary"></p>
+          <label class="dialog-field">
+            <span data-i18n="fileName">File name</span>
+            <input id="cloud-save-name" type="text" autocomplete="off">
+          </label>
+        </div>
+        <footer class="dialog-footer">
+          <button id="cloud-save-confirm" type="button" data-i18n="save">Save</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="cloud-conflict-dialog" class="dialog-backdrop" aria-label="Cloud save conflict" hidden>
+      <div class="dialog confirm-dialog">
+        <header class="dialog-header">
+          <h2 data-i18n="cloudConflictTitle">Cloud Conflict</h2>
+          <button id="cloud-conflict-cancel" type="button" aria-label="Cancel conflict resolution" data-i18n="cancel">Cancel</button>
+        </header>
+        <div class="dialog-body">
+          <p id="cloud-conflict-message" class="dialog-summary"></p>
+        </div>
+        <footer class="dialog-footer conflict-actions">
+          <button id="cloud-conflict-reload" type="button" data-i18n="reloadRemote">Reload Remote</button>
+          <button id="cloud-conflict-duplicate" type="button" data-i18n="saveDuplicate">Save Duplicate</button>
+          <button id="cloud-conflict-overwrite" type="button" data-i18n="overwriteRemote">Overwrite</button>
         </footer>
       </div>
     </section>
 
     <div id="presentation" class="presentation presentation-presenter" hidden>
-      <button id="exit-present" class="exit-present" type="button" aria-label="Exit presentation">Exit</button>
+      <button id="exit-present" class="exit-present" type="button" aria-label="Exit presentation" data-i18n="close">Close</button>
       <div class="presentation-stage">
         <article id="presentation-slide" class="presentation-slide"></article>
         <aside class="presentation-side" aria-label="Presenter details">
@@ -187,18 +283,18 @@
             <span id="presentation-timer">00:00</span>
           </div>
           <section class="presentation-next-panel">
-            <h2>Next</h2>
+            <h2 data-i18n="next">Next</h2>
             <div id="presentation-next" class="presentation-next"></div>
           </section>
           <section class="presentation-notes-panel">
-            <h2>Notes</h2>
+            <h2 data-i18n="notes">Notes</h2>
             <div id="presentation-notes"></div>
           </section>
         </aside>
       </div>
       <footer class="presentation-footer">
-        <span>Left / Right to navigate</span>
-        <span>Esc to exit</span>
+        <span data-i18n="leftRightNavigate">Left / Right to navigate</span>
+        <span data-i18n="escExit">Esc to exit</span>
       </footer>
     </div>
 

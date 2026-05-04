@@ -192,3 +192,173 @@ V1 is finished and marked in `plan/v1_done.md`. V2 is finished and marked in `pl
 - Updated `npm run release:check` to include the V2 browser regression suite.
 - Renamed `plan/v2.md` to `plan/v2_done.md` to mark the V2 plan complete.
 - No new runtime or development dependencies were introduced.
+
+# V3 Development
+
+V3 started on 2026-05-01 and is now marked complete in `plan/v3_done.md`.
+
+## 2026-05-01 (1)
+
+- Started V3 Step 1 with the OAuth provider-selection shell.
+- Added a `Cloud` toolbar dropdown with Google Drive and OneDrive sign-in actions.
+- Added an in-app cloud sign-in dialog for missing OAuth client configuration.
+- Added PKCE OAuth authorization URL generation for Google and Microsoft when `VITE_GOOGLE_CLIENT_ID` or `VITE_MICROSOFT_CLIENT_ID` is configured.
+- Stored pending auth state, provider, and code verifier in `sessionStorage` for the future token exchange step.
+- Added `npm run test:v3` and included it in `npm run release:check`.
+- Added V3 browser regression coverage for provider selection and missing-client configuration warnings.
+- Reordered the toolbar so Cloud sits beside New before Import and Export, with dividers separating cloud, file, editing, and presentation groups.
+- Created a `src/` module folder and moved V3 OAuth provider/PKCE logic into `src/cloudAuth.js`.
+- Moved V2 project package `.zip` build/read/validation logic into `src/projectPackage.js`.
+- Changed outline navigation to instant scrolling so large-deck active slide state stays deterministic.
+- Aligned presentation rendering with preview/print by scaling the same fixed-size slide instead of resizing slide content and changing font size.
+- Updated README and AGENTS with the modular source layout.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-01 (2)
+
+- Continued V3 with Substep 1.2: OAuth callback token exchange and session storage.
+- Added provider token endpoints and a callback handler that validates the returned OAuth `state`, exchanges the authorization code with the saved PKCE verifier, and stores the resulting cloud session in `sessionStorage`.
+- Added a cloud session status pill in the toolbar so the user can see signed-out or signed-in provider state.
+- Added localized success and failure messages for cloud auth completion.
+- Added Node module tests for successful token exchange, invalid-state rejection, and expired-session handling.
+- Updated `npm run check` to syntax-check `src/*.js` and updated `npm run test:v3` to run the cloud-auth module tests before the browser cloud-auth regression.
+- Updated README and AGENTS with callback/session behavior and V3 testing expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-01 (3)
+
+- Continued V3 with Substep 1.3: logout and token-expiry recovery.
+- Added `Cloud > Disconnect` to clear the active cloud session and pending auth state.
+- Added expired-session detection on startup; stale sessions are cleared and the user is prompted to sign in again.
+- Disabled Disconnect when no valid cloud session exists and kept the signed-in/signed-out status visible in the toolbar brand area.
+- Added localized disconnect and session-expired messages.
+- Expanded V3 module and browser tests for expired sessions, disconnect cleanup, and disabled logout state.
+- Updated README and AGENTS with logout and expired-session recovery expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-01 (4)
+
+- Continued V3 with Substep 2.1: cloud file connector abstraction.
+- Added `src/cloudConnectors.js` with provider-neutral `listFiles`, `openFile`, `saveFile`, and `createFile` connector semantics.
+- Added shared cloud connector error codes for unauthenticated access, unsupported providers, not-yet-implemented provider APIs, missing files, network failures, and revision conflicts.
+- Added normalized cloud file metadata fields so Google Drive and OneDrive can later feed the same open/save workflow.
+- Added an in-memory connector and registry for contract tests without introducing real provider API calls yet.
+- Expanded `npm run test:v3` with cloud connector module tests for session requirements, connector selection, metadata normalization, list/open/save/create behavior, and conflict detection.
+- Updated README and AGENTS with the cloud connector module and V3 test expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-01 (i18n)
+
+- Added multiple UI language support as an extra required feature.
+- Added `src/i18n.js` with English and Chinese translations and a persisted language selector.
+- Localized static toolbar, panel, dialog, presentation, asset, export, package, cloud-auth, and status text where it is part of the UI workflow.
+- Added browser regression coverage for switching between English and Chinese and preserving the selected language after reload.
+- Updated README and AGENTS with the language selector and translation maintenance expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-02 (1)
+
+- Continued V3 with Substep 2.2: Google Drive connector implementation.
+- Added `src/googleDriveConnector.js` with Google Drive file listing, metadata mapping, media download, revision-checked save, and multipart file creation.
+- Kept Google Drive on the existing least-privilege `drive.file` scope; this supports files Slip creates or files the user explicitly opens with Slip, while broad Drive browsing remains a later product/security decision.
+- Added Google Drive connector tests for list queries, authorized requests, metadata normalization, open, save, conflict blocking, create, MIME inference, and API error mapping.
+- Expanded `npm run test:v3` to include the Google Drive connector module tests.
+- Updated README and AGENTS with the Google Drive connector module and V3 testing expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-02 (2)
+
+- Continued V3 with Substep 2.3: OneDrive connector implementation.
+- Added `src/oneDriveConnector.js` with Microsoft Graph file listing, metadata mapping, browser-safe download URL handling, revision-checked save, and small-file creation.
+- Used the Graph-recommended browser pattern of fetching `@microsoft.graph.downloadUrl` before downloading file contents, avoiding `/content` redirect/CORS issues in JavaScript apps.
+- Added OneDrive connector tests for supported file filtering, authorized requests, metadata normalization, open, save, conflict blocking, create, MIME inference, and API error mapping.
+- Expanded `npm run test:v3` to include the OneDrive connector module tests.
+- Updated README and AGENTS with the OneDrive connector module and V3 testing expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-02 (3)
+
+- Continued V3 with Substep 3.1: Open From Cloud picker and recent file memory.
+- Added `Cloud > Open From Cloud`, disabled until a cloud session is active.
+- Added a cloud open dialog with provider summary, search, refresh, supported file listing, and recent cloud files persisted in `localStorage`.
+- Wired the cloud picker to the active Google Drive or OneDrive connector and load selected Markdown files into the editor.
+- Added project package opening support through cloud metadata and blobs so `.zip` Slip packages can be restored through the same picker.
+- Localized the cloud picker UI in English and Chinese.
+- Updated README and AGENTS with the new cloud open workflow and testing expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-02 (4)
+
+- Continued V3 with Substep 3.2: Save and Save As to cloud destination.
+- Added `Cloud > Save` and `Cloud > Save As`; Save is enabled only after the deck has an active cloud file, while Save As creates and binds a new cloud file.
+- Followed the draw.io-style location model: once a deck is opened from cloud or saved there, Slip keeps that cloud location as the current destination.
+- Added a first-party Save As dialog for naming the cloud file instead of using a browser prompt.
+- Added cloud save payload generation for Markdown decks and Slip project packages, with project-mode decks defaulting to `.zip` package saves.
+- Updated cloud session status to show the active cloud file name when a cloud destination is bound.
+- Localized the cloud save UI in English and Chinese.
+- Updated README and AGENTS with the cloud save workflow and testing expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-03 (1)
+
+- Changed the Google sign-in path from browser-based authorization-code exchange to Google Identity Services token auth.
+- Fixed the real Google login blocker where Google's Web OAuth client required a `client_secret` during token exchange; Slip no longer sends Google auth codes to the token endpoint from the browser.
+- Kept Microsoft on the existing PKCE redirect and callback flow.
+- Stored GIS access-token responses in the existing cloud session shape so Google Drive connectors, cloud open, and cloud save continue using the same session API.
+- Updated V3 auth tests for Google GIS token sessions and provider-selection behavior with or without a configured Google client ID.
+- Updated README and AGENTS to distinguish Google GIS auth from Microsoft OAuth callback auth.
+- Added `.gitignore` coverage for local environment files so `.env.local` stays out of commits.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-03 (2)
+
+- Continued V3 with Substep 3.3 and Step 4: dirty-state prompts plus conflict detection and resolution.
+- Added cloud document dirty tracking; cloud-bound decks show `*` beside the active cloud file name when local edits are not saved to the cloud destination.
+- Added browser `beforeunload` protection and in-app discard warnings before replacing a cloud-bound deck with unsaved local edits.
+- Added explicit conflict handling when provider revision IDs differ during save.
+- Added a cloud conflict dialog with Reload Remote, Save Duplicate, and Overwrite choices.
+- Wired conflict reload to reopen the provider copy, duplicate to create a local-copy cloud file, and overwrite to save without the stale expected revision.
+- Expanded V3 browser tests for dirty indicators, discard warning, conflict dialog actions, and overwrite resolution.
+- Updated README and AGENTS with dirty-state and conflict-resolution expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-04 (1)
+
+- Continued V3 with Step 5: offline and recovery behavior.
+- Added a local pending cloud-write buffer in `localStorage` for failed cloud saves caused by network/provider availability issues.
+- Added cloud sync status labels in the cloud status pill: local, syncing, synced, pending, and conflict.
+- Added automatic retry of pending cloud writes when the browser fires the `online` event, as long as the local document still matches the queued write.
+- Added stale-pending protection so Slip does not auto-upload an older queued version after the user has made newer local edits.
+- Serialized pending Markdown writes as text and project package writes as data URLs so retries survive reloads without new dependencies.
+- Expanded V3 browser tests for offline save buffering and online retry.
+- Updated README and AGENTS with offline retry behavior and testing expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-04 (2)
+
+- Continued V3 with Step 6: cloud security and permissions.
+- Reduced Google auth to the `drive.file` scope only; removed identity scopes because Slip does not need a Google profile to open and save files.
+- Reduced Microsoft auth to `Files.ReadWrite`; removed `offline_access` and identity scopes because Slip does not store refresh tokens or need profile claims.
+- Added Google Identity Services token revocation on `Cloud > Disconnect` when the browser provider API is available.
+- Extended disconnect cleanup to remove pending cloud writes and recent cloud-file cache entries for the disconnected provider.
+- Added V3 tests for minimal scopes, Google token revocation, non-Google revocation avoidance, and local cloud-cache cleanup on disconnect.
+- Updated README and AGENTS with security, scope, and disconnect-cleanup behavior.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-04 (3)
+
+- Cleaned up the project structure after V3 cloud work.
+- Extracted deck constants, slide sizing, parsing, Markdown rendering, KaTeX math rendering, code highlighting, HTML escaping, hashing, and scoped CSS helpers from `app.js` into `src/deck.js`.
+- Kept `app.js` focused on editor state, DOM rendering, project workflows, cloud workflows, and event wiring.
+- Removed leftover preview render debug logging from production code.
+- Added an editor-update flush before cloud saves so delayed render status updates cannot overwrite cloud save/offline retry messages.
+- Updated README and AGENTS with the new deck module.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-04 (4)
+
+- Marked V3 as complete.
+- Renamed `plan/v3.md` to `plan/v3_done.md` and added a completion status note.
+- Updated README with the completed V3 cloud-sync scope.
+- Updated AGENTS so future work treats V1, V2, and V3 as complete and does not begin V4 without confirmation.
+- No new runtime or development dependencies were introduced.

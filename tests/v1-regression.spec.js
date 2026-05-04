@@ -86,6 +86,52 @@ Upcoming`, 2);
   await expect(page.locator("#presentation-notes")).toHaveText("Presenter notes");
 });
 
+test("keeps preview and presentation slide layout consistent", async ({ page }) => {
+  await openDeck(page, `${baseFrontmatter}
+
+# Layout Match
+
+This paragraph should wrap the same way in preview and presentation mode with enough text to expose width or font changes.
+
+- First item
+- Second item
+- Third item`, 1);
+
+  const previewMetrics = await page.locator(".preview .slide").first().evaluate((slide) => {
+    const inner = slide.querySelector(".slide-inner");
+    const heading = slide.querySelector("h1");
+    const paragraph = slide.querySelector("p");
+    return {
+      width: Math.round(slide.getBoundingClientRect().width),
+      height: Math.round(slide.getBoundingClientRect().height),
+      innerFont: window.getComputedStyle(inner).fontSize,
+      headingWidth: Math.round(heading.getBoundingClientRect().width),
+      paragraphHeight: Math.round(paragraph.getBoundingClientRect().height),
+    };
+  });
+
+  await page.locator("#present-menu-button").click();
+  await page.locator("#present-mirror").click();
+
+  const presentationMetrics = await page.locator("#presentation-slide .slide").evaluate((slide) => {
+    const inner = slide.querySelector(".slide-inner");
+    const heading = slide.querySelector("h1");
+    const paragraph = slide.querySelector("p");
+    return {
+      width: Math.round(slide.getBoundingClientRect().width),
+      height: Math.round(slide.getBoundingClientRect().height),
+      innerFont: window.getComputedStyle(inner).fontSize,
+      headingWidth: Math.round(heading.getBoundingClientRect().width),
+      paragraphHeight: Math.round(paragraph.getBoundingClientRect().height),
+    };
+  });
+
+  expect(presentationMetrics.innerFont).toBe(previewMetrics.innerFont);
+  expect(presentationMetrics.width / presentationMetrics.height).toBeCloseTo(previewMetrics.width / previewMetrics.height, 2);
+  expect(presentationMetrics.headingWidth / presentationMetrics.width).toBeCloseTo(previewMetrics.headingWidth / previewMetrics.width, 2);
+  expect(presentationMetrics.paragraphHeight / presentationMetrics.height).toBeCloseTo(previewMetrics.paragraphHeight / previewMetrics.height, 2);
+});
+
 test("shows consolidated toolbar dropdown actions", async ({ page }) => {
   await openDeck(page, `${baseFrontmatter}
 
@@ -95,9 +141,15 @@ Menu actions should be grouped.`, 1);
 
   await expect(page.locator("#import-menu-button")).toHaveClass(/menu-button/);
   await expect(page.locator("#export-menu-button")).toHaveClass(/menu-button/);
+  await expect(page.locator("#cloud-menu-button")).toHaveClass(/menu-button/);
   await expect(page.locator("#present-menu-button")).toHaveClass(/menu-button/);
-  await expect(page.locator(".toolbar-divider")).toHaveCount(2);
+  await expect(page.locator(".toolbar-divider")).toHaveCount(3);
   await expect(page.locator(".toolbar-actions > *").first()).toHaveAttribute("id", "new-deck");
+  await expect(page.locator(".toolbar-actions > *").nth(1)).toContainText("Cloud");
+  await expect(page.locator(".toolbar-actions > *").nth(2)).toHaveText("|");
+  await expect(page.locator(".toolbar-actions > *").nth(3)).toContainText("Import");
+  await expect(page.locator(".toolbar-actions > *").nth(4)).toContainText("Export");
+  await expect(page.locator(".toolbar-actions > *").nth(5)).toHaveText("|");
 
   await page.locator("#import-menu-button").click();
   await expect(page.locator("#import-menu-options")).toBeVisible();
@@ -111,6 +163,28 @@ Menu actions should be grouped.`, 1);
   await expect(page.locator("#export-menu-options")).toContainText("Markdown (embedded)");
   await expect(page.locator("#export-menu-options")).toContainText("Project Package");
   await expect(page.locator("#export-menu-options")).toContainText("PDF");
+});
+
+test("switches UI language between English and Chinese", async ({ page }) => {
+  await openDeck(page, `${baseFrontmatter}
+
+# Language
+
+UI labels should translate without changing slide content.`, 1);
+
+  await page.locator("#language-picker").selectOption("zh");
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.locator("#new-deck")).toHaveText("新建");
+  await expect(page.locator("#cloud-menu-button")).toContainText("云端");
+  await expect(page.locator("#project-mode")).toHaveText("单文件");
+
+  await page.reload();
+  await expect(page.locator("#language-picker")).toHaveValue("zh");
+  await expect(page.locator("#export-menu-button")).toContainText("导出");
+
+  await page.locator("#language-picker").selectOption("en");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator("#new-deck")).toHaveText("New");
 });
 
 test("starts a new three slide deck after confirmation", async ({ page }) => {

@@ -106,6 +106,26 @@ button:disabled {
   font-weight: 650;
 }
 
+.cloud-session-status {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid #d8dde3;
+  border-radius: 999px;
+  background: #f6f8fa;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.cloud-session-status.is-authenticated {
+  border-color: #c6d7d3;
+  background: #eef8f5;
+  color: var(--accent-strong);
+}
+
 .toolbar-actions {
   display: flex;
   align-items: center;
@@ -557,8 +577,113 @@ button:disabled {
   color: #fff;
 }
 
+#cloud-save-confirm {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+#cloud-conflict-overwrite {
+  border-color: #b42318;
+  background: #b42318;
+  color: #fff;
+}
+
+.conflict-actions {
+  justify-content: space-between;
+}
+
 .confirm-dialog {
   grid-template-rows: 48px auto 52px;
+}
+
+.dialog-field {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dialog-field input {
+  min-width: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+}
+
+.cloud-open-dialog {
+  width: min(720px, 100%);
+}
+
+.cloud-picker-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cloud-picker-controls input {
+  min-width: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  font: inherit;
+}
+
+.cloud-picker-section {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.cloud-picker-section h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.cloud-file-list {
+  display: grid;
+  gap: 6px;
+}
+
+.cloud-file-item {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  min-height: 48px;
+  justify-items: start;
+  border-color: var(--panel-border);
+  background: #fff;
+  text-align: left;
+}
+
+.cloud-file-item:hover {
+  border-color: var(--accent);
+}
+
+.cloud-file-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cloud-file-meta,
+.cloud-file-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cloud-file-empty {
+  margin: 0;
+  padding: 8px 0;
 }
 
 .split-review-list {
@@ -846,6 +971,7 @@ button:disabled {
   place-self: center;
   width: min(calc(100vw - 420px), calc((100vh - 88px) * 16 / 9));
   height: min(calc(100vh - 88px), calc((100vw - 420px) * 9 / 16));
+  overflow: hidden;
 }
 
 .presentation-size-a4 .presentation-slide {
@@ -854,15 +980,11 @@ button:disabled {
 }
 
 .presentation-slide .slide {
-  transform: none;
-  width: 100%;
-  height: 100%;
+  width: var(--slide-width);
+  height: var(--slide-height);
+  transform-origin: top left;
   border: 0;
   box-shadow: none;
-}
-
-.presentation-slide .slide-inner {
-  font-size: clamp(20px, 2.6vw, 34px);
 }
 
 .presentation-side {

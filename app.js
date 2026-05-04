@@ -36,108 +36,35 @@ import {
   highlightSelectionMatches,
   searchKeymap,
 } from "@codemirror/search";
-import katex from "katex";
-import "katex/dist/katex.min.css";
-import hljs from "highlight.js/lib/core";
-import bash from "highlight.js/lib/languages/bash";
-import css from "highlight.js/lib/languages/css";
-import javascript from "highlight.js/lib/languages/javascript";
-import json from "highlight.js/lib/languages/json";
-import markdownLang from "highlight.js/lib/languages/markdown";
-import python from "highlight.js/lib/languages/python";
-import typescript from "highlight.js/lib/languages/typescript";
-import xml from "highlight.js/lib/languages/xml";
-import "highlight.js/styles/github.css";
-import JSZip from "jszip";
-
-hljs.registerLanguage("bash", bash);
-hljs.registerLanguage("sh", bash);
-hljs.registerLanguage("css", css);
-hljs.registerLanguage("html", xml);
-hljs.registerLanguage("javascript", javascript);
-hljs.registerLanguage("js", javascript);
-hljs.registerLanguage("json", json);
-hljs.registerLanguage("markdown", markdownLang);
-hljs.registerLanguage("md", markdownLang);
-hljs.registerLanguage("python", python);
-hljs.registerLanguage("py", python);
-hljs.registerLanguage("typescript", typescript);
-hljs.registerLanguage("ts", typescript);
-hljs.registerLanguage("xml", xml);
-
-  const sampleMarkdown = `---
-title: Slip Demo
-theme: clean
-size: widescreen
----
-
-<style>
-h1 {
-  letter-spacing: 0.02em;
-}
-</style>
-
-# Slip
-
-Browser-native Markdown slides with reliable print export.
-
-- Write Markdown
-- Preview fixed-size slides
-- Print or save as PDF
-
-???
-Speaker notes are written after three question marks.
-
----
-
-## Images and code
-
-![Placeholder](data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 360'%3E%3Crect width='900' height='360' fill='%23e5f2ef'/%3E%3Ctext x='450' y='190' text-anchor='middle' font-family='Arial' font-size='48' fill='%230f554c'%3EDrop images into the editor%3C/text%3E%3C/svg%3E)
-
-\`\`\`js
-const deck = parseSlides(markdown);
-render(deck);
-\`\`\`
-
-Inline math works: $E = mc^2$
-
-$$
-\\int_0^1 x^2\\,dx = \\frac{1}{3}
-$$
-
----
-
-## Export
-
-Use **Export > PDF** to open the browser print dialog.
-
-The preview is designed as a print page first, then scaled for screen reading.
-`;
-
-  const newDeckMarkdown = `---
-title: New Deck
-theme: clean
-size: widescreen
----
-
-# Title Slide
-
-Start with the main idea.
-
----
-
-## Key Points
-
-- First point
-- Second point
-- Third point
-
----
-
-## Closing
-
-End with the takeaway.
-`;
+import {
+  clearCloudAuthSession,
+  completeCloudAuthFromUrl,
+  createCloudAuthProviders,
+  readCloudAuthSession,
+  readCloudAuthSessionState,
+  revokeCloudAuthSession,
+  startCloudAuth as beginCloudAuth,
+  startGoogleTokenAuth,
+} from "./src/cloudAuth.js";
+import { CloudConnectorError, cloudConnectorErrorCodes } from "./src/cloudConnectors.js";
+import {
+  createDeckParser,
+  escapeHtml,
+  extractCustomCss,
+  extractTitle,
+  hashString,
+  newDeckMarkdown,
+  normalizeSlideSize,
+  renderMarkdown,
+  sampleMarkdown,
+  scopeCustomCss,
+  slideSizes,
+  unescapeHtml,
+} from "./src/deck.js";
+import { createGoogleDriveConnector } from "./src/googleDriveConnector.js";
+import { createI18n, defaultLanguage, normalizeLanguage } from "./src/i18n.js";
+import { createOneDriveConnector } from "./src/oneDriveConnector.js";
+import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackage.js";
 
   const projectStorage = {
     dbName: "slip-project-vfs",
@@ -147,9 +74,14 @@ End with the takeaway.
     documentStore: "documents",
     assetStore: "assets",
   };
+  const cloudRecentFilesKey = "slip.cloudRecentFiles";
+  const cloudPendingWriteKey = "slip.cloudPendingWrite";
 
   const initialProjectDocument = readLocalProjectSnapshot();
-  let slideParseCache = new Map();
+  const parseDeck = createDeckParser();
+  const cloudAuthProviders = createCloudAuthProviders(import.meta.env || {});
+  const i18n = createI18n(localStorage.getItem("slip.language") || navigator.language?.slice(0, 2) || defaultLanguage);
+  const t = (key, params) => i18n.t(key, params);
 
   const state = {
     markdown: initialProjectDocument?.markdown || localStorage.getItem("slip.markdown") || sampleMarkdown,
@@ -173,25 +105,17 @@ End with the takeaway.
     assetSort: "name",
     assetVisibleLimit: 60,
     assetThumbnailCache: new Map(),
-  };
-
-  const slideSizes = {
-    widescreen: {
-      label: "16:9",
-      width: 1280,
-      height: 720,
-      printWidth: "16in",
-      printHeight: "9in",
-      page: "16in 9in",
-    },
-    a4: {
-      label: "A4",
-      width: 794,
-      height: 1123,
-      printWidth: "210mm",
-      printHeight: "297mm",
-      page: "A4",
-    },
+    ignorePreviewScrollUntil: 0,
+    cloudSession: null,
+    cloudFile: null,
+    cloudSavedHash: "",
+    cloudConflict: null,
+    cloudSyncStatus: "local",
+    pendingCloudWrite: readPendingCloudWrite(),
+    cloudFiles: [],
+    cloudRecentFiles: readRecentCloudFiles(),
+    cloudLoading: false,
+    cloudOpenError: "",
   };
 
   function createSingleFileProject() {
@@ -300,6 +224,7 @@ End with the takeaway.
     deckTitle: document.getElementById("deck-title"),
     projectMode: document.getElementById("project-mode"),
     newDeck: document.getElementById("new-deck"),
+    languagePicker: document.getElementById("language-picker"),
     newDeckDialog: document.getElementById("new-deck-dialog"),
     newDeckMessage: document.getElementById("new-deck-message"),
     newDeckConfirm: document.getElementById("new-deck-confirm"),
@@ -324,6 +249,39 @@ End with the takeaway.
     exportMd: document.getElementById("export-md"),
     exportSelfContainedMd: document.getElementById("export-self-contained-md"),
     exportProjectPackage: document.getElementById("export-project-package"),
+    cloudMenuButton: document.getElementById("cloud-menu-button"),
+    cloudMenuOptions: document.getElementById("cloud-menu-options"),
+    cloudOpen: document.getElementById("cloud-open"),
+    cloudSave: document.getElementById("cloud-save"),
+    cloudSaveAs: document.getElementById("cloud-save-as"),
+    cloudGoogle: document.getElementById("cloud-google"),
+    cloudMicrosoft: document.getElementById("cloud-microsoft"),
+    cloudDisconnect: document.getElementById("cloud-disconnect"),
+    cloudSessionStatus: document.getElementById("cloud-session-status"),
+    cloudAuthDialog: document.getElementById("cloud-auth-dialog"),
+    cloudAuthMessage: document.getElementById("cloud-auth-message"),
+    cloudAuthClose: document.getElementById("cloud-auth-close"),
+    cloudAuthOk: document.getElementById("cloud-auth-ok"),
+    cloudOpenDialog: document.getElementById("cloud-open-dialog"),
+    cloudOpenSummary: document.getElementById("cloud-open-summary"),
+    cloudSearch: document.getElementById("cloud-search"),
+    cloudSearchButton: document.getElementById("cloud-search-button"),
+    cloudRefreshButton: document.getElementById("cloud-refresh-button"),
+    cloudRecentList: document.getElementById("cloud-recent-list"),
+    cloudFileList: document.getElementById("cloud-file-list"),
+    cloudOpenClose: document.getElementById("cloud-open-close"),
+    cloudOpenCancel: document.getElementById("cloud-open-cancel"),
+    cloudSaveDialog: document.getElementById("cloud-save-dialog"),
+    cloudSaveSummary: document.getElementById("cloud-save-summary"),
+    cloudSaveName: document.getElementById("cloud-save-name"),
+    cloudSaveConfirm: document.getElementById("cloud-save-confirm"),
+    cloudSaveCancel: document.getElementById("cloud-save-cancel"),
+    cloudConflictDialog: document.getElementById("cloud-conflict-dialog"),
+    cloudConflictMessage: document.getElementById("cloud-conflict-message"),
+    cloudConflictReload: document.getElementById("cloud-conflict-reload"),
+    cloudConflictDuplicate: document.getElementById("cloud-conflict-duplicate"),
+    cloudConflictOverwrite: document.getElementById("cloud-conflict-overwrite"),
+    cloudConflictCancel: document.getElementById("cloud-conflict-cancel"),
     autoSplit: document.getElementById("auto-split"),
     customCssToggle: document.getElementById("custom-css-toggle"),
     customCssPanel: document.getElementById("custom-css-panel"),
@@ -396,6 +354,128 @@ End with the takeaway.
     }),
   });
 
+  function applyLanguage() {
+    const language = normalizeLanguage(i18n.language);
+    document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+    elements.languagePicker.value = language;
+    document.querySelectorAll("[data-i18n]").forEach((element) => {
+      element.childNodes.forEach((node) => {
+        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+          node.textContent = t(element.dataset.i18n);
+        }
+      });
+      if (![...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim())) {
+        element.textContent = t(element.dataset.i18n);
+      }
+    });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
+      element.setAttribute("placeholder", t(element.dataset.i18nPlaceholder));
+    });
+    if (state.deck) render();
+    updateCloudSessionStatus();
+    renderCloudOpenDialog();
+  }
+
+  async function initializeCloudAuth() {
+    const sessionState = readCloudAuthSessionState();
+    state.cloudSession = sessionState.status === "authenticated" ? sessionState.session : null;
+    if (sessionState.status === "expired") {
+      clearCloudAuthSession();
+      openCloudAuthDialog(t("cloudSessionExpired", { provider: sessionState.session.providerLabel || sessionState.session.provider }));
+    }
+    updateCloudSessionStatus();
+    restorePendingCloudWriteForSession();
+    const result = await completeCloudAuthFromUrl(window.location.href, cloudAuthProviders);
+    if (result.status === "idle") return;
+    cleanCloudAuthUrl();
+    if (result.status === "authenticated") {
+      state.cloudSession = result.session;
+      restorePendingCloudWriteForSession();
+      updateCloudSessionStatus();
+      elements.status.textContent = t("cloudAuthComplete", { provider: result.session.providerLabel });
+      elements.status.classList.remove("warning");
+      return;
+    }
+
+    state.cloudSession = readCloudAuthSession();
+    updateCloudSessionStatus();
+    openCloudAuthDialog(t("cloudAuthFailed", { reason: cloudAuthFailureReason(result) }));
+  }
+
+  function updateCloudSessionStatus() {
+    const session = state.cloudSession;
+    const syncLabel = state.cloudFile ? cloudSyncStatusLabel() : "";
+    const cloudFileLabel = state.cloudFile?.name
+      ? `${session?.providerLabel || ""} · ${state.cloudFile.name}${hasUnsavedCloudChanges() ? " *" : ""}${syncLabel ? ` · ${syncLabel}` : ""}`
+      : session?.providerLabel;
+    elements.cloudSessionStatus.textContent = session
+      ? t("cloudSignedIn", { provider: cloudFileLabel })
+      : t("cloudSignedOut");
+    elements.cloudSessionStatus.classList.toggle("is-authenticated", Boolean(session));
+    elements.cloudOpen.disabled = !session;
+    elements.cloudSave.disabled = !session || !state.cloudFile;
+    elements.cloudSaveAs.disabled = !session;
+    elements.cloudDisconnect.disabled = !session;
+  }
+
+  function cloudSyncStatusLabel() {
+    if (state.cloudSyncStatus === "syncing") return t("cloudSyncSyncing");
+    if (state.cloudSyncStatus === "pending") return t("cloudSyncPending");
+    if (state.cloudSyncStatus === "conflict") return t("cloudSyncConflict");
+    if (state.cloudSyncStatus === "synced") return t("cloudSyncSynced");
+    return t("cloudSyncLocal");
+  }
+
+  function cloudDocumentHash() {
+    const assetsKey = state.project.mode === "project"
+      ? [...state.project.assets.values()]
+        .map((asset) => `${asset.path}:${asset.hash}`)
+        .sort()
+        .join("|")
+      : "";
+    return hashString(`${state.project.mode}\n${getEditorValue()}\n${assetsKey}`);
+  }
+
+  function markCloudSaved(metadata = state.cloudFile) {
+    state.cloudFile = metadata;
+    state.cloudSavedHash = metadata ? cloudDocumentHash() : "";
+    state.cloudSyncStatus = metadata ? "synced" : "local";
+    clearPendingCloudWrite();
+    updateCloudSessionStatus();
+  }
+
+  function clearCloudBinding() {
+    state.cloudFile = null;
+    state.cloudSavedHash = "";
+    state.cloudConflict = null;
+    state.cloudSyncStatus = "local";
+    updateCloudSessionStatus();
+  }
+
+  function hasUnsavedCloudChanges() {
+    return Boolean(state.cloudFile && state.cloudSavedHash && state.cloudSavedHash !== cloudDocumentHash());
+  }
+
+  function confirmDiscardUnsavedCloudChanges() {
+    return !hasUnsavedCloudChanges() || window.confirm(t("discardUnsavedCloudChanges"));
+  }
+
+  function cloudAuthFailureReason(result) {
+    if (result.reason === "provider_error") return t("cloudAuthProviderError", { detail: result.detail || "unknown error" });
+    if (result.reason === "missing_pending") return t("cloudAuthMissingPending");
+    if (result.reason === "invalid_state") return t("cloudAuthInvalidState");
+    if (result.reason === "unknown_provider") return t("cloudAuthUnknownProvider");
+    if (result.reason === "token_exchange_failed") return t("cloudAuthTokenFailed", { detail: result.detail || "unknown error" });
+    return result.detail || result.reason || "unknown error";
+  }
+
+  function cleanCloudAuthUrl() {
+    const url = new URL(window.location.href);
+    ["code", "state", "error", "error_description", "scope"].forEach((key) => url.searchParams.delete(key));
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState({}, document.title, nextUrl);
+  }
+
   function getEditorValue() {
     return editorView.state.doc.toString();
   }
@@ -413,327 +493,10 @@ End with the takeaway.
     });
   }
 
-  function parseDeck(markdown) {
-    const normalized = markdown.replace(/\r\n?/g, "\n");
-    const frontmatter = parseFrontmatter(normalized);
-    const customCss = extractCustomCss(frontmatter.body);
-    const rawSlides = splitSlides(customCss.body);
-    const nextSlideCache = new Map();
-    const slides = rawSlides.map((source, index) => {
-      const sourceHash = hashString(source);
-      const cached = slideParseCache.get(sourceHash);
-      const parsed = cached || parseSlideParts(source, sourceHash);
-      nextSlideCache.set(sourceHash, parsed);
-      return {
-        id: `slide-${index + 1}`,
-        index,
-        source,
-        ...parsed,
-        title: parsed.title || `Slide ${index + 1}`,
-      };
-    });
-    slideParseCache = nextSlideCache;
-
-    return {
-      meta: {
-        title: frontmatter.meta.title || "Untitled deck",
-        theme: frontmatter.meta.theme || "clean",
-        size: normalizeSlideSize(frontmatter.meta.size),
-      },
-      customCss: customCss.css,
-      slides: slides.length ? slides : [{ id: "slide-1", index: 0, source: "", content: "", notes: "", hash: hashString(""), title: "Slide 1" }],
-      warnings: [...frontmatter.warnings, ...customCss.warnings],
-    };
-  }
-
-  function parseSlideParts(source, sourceHash = hashString(source)) {
-    const noteParts = source.split(/\n\?\?\?\n?/);
-    const content = (noteParts.shift() || "").trim();
-    const notes = noteParts.join("\n???\n").trim();
-    return {
-      content,
-      notes,
-      hash: hashString(`${sourceHash}:${content}\n???\n${notes}`),
-      title: extractTitle(content),
-    };
-  }
-
-  function extractCustomCss(markdown) {
-    const warnings = [];
-    const styleMatch = markdown.match(/^\s*<style>\n([\s\S]*?)\n<\/style>\s*/i);
-    if (!styleMatch) return { body: markdown, css: "", warnings };
-    return {
-      body: markdown.slice(styleMatch[0].length),
-      css: styleMatch[1].trim(),
-      warnings,
-    };
-  }
-
-  function normalizeSlideSize(size) {
-    if (size === "a4" || size === "A4") return "a4";
-    if (size === "16:9" || size === "widescreen") return "widescreen";
-    return "widescreen";
-  }
-
-  function parseFrontmatter(markdown) {
-    const result = { meta: {}, body: markdown, warnings: [] };
-    if (!markdown.startsWith("---\n")) return result;
-
-    const end = markdown.indexOf("\n---", 4);
-    if (end === -1) {
-      result.warnings.push("Frontmatter start found without closing marker.");
-      return result;
-    }
-
-    const raw = markdown.slice(4, end).trim();
-    result.body = markdown.slice(end + 4).replace(/^\n/, "");
-    raw.split("\n").forEach((line) => {
-      const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
-      if (match) result.meta[match[1].trim()] = match[2].trim().replace(/^["']|["']$/g, "");
-    });
-    return result;
-  }
-
-  function splitSlides(body) {
-    const slides = [];
-    let current = [];
-    let inFence = false;
-
-    body.split("\n").forEach((line) => {
-      if (/^\s*```/.test(line)) inFence = !inFence;
-      if (!inFence && /^---\s*$/.test(line)) {
-        slides.push(current.join("\n"));
-        current = [];
-      } else {
-        current.push(line);
-      }
-    });
-    slides.push(current.join("\n"));
-    return slides.map((slide) => slide.trim()).filter((slide, index, all) => slide || all.length === 1 || index < all.length - 1);
-  }
-
-  function extractTitle(markdown) {
-    const heading = markdown.match(/^#{1,3}\s+(.+)$/m);
-    if (heading) return stripMarkdown(heading[1]).slice(0, 80);
-    const firstText = markdown.split("\n").find((line) => line.trim() && !line.trim().startsWith("!"));
-    return firstText ? stripMarkdown(firstText).slice(0, 80) : "";
-  }
-
-  function renderMarkdown(markdown) {
-    const lines = markdown.split("\n");
-    let html = "";
-    let paragraph = [];
-    let list = null;
-    let inCode = false;
-    let inMath = false;
-    let codeBuffer = [];
-    let mathBuffer = [];
-    let codeLang = "";
-
-    function flushParagraph() {
-      if (!paragraph.length) return;
-      html += `<p>${inlineMarkdown(paragraph.join(" "))}</p>`;
-      paragraph = [];
-    }
-
-    function flushList() {
-      if (!list) return;
-      html += `<${list.type}>${list.items.map((item) => `<li>${inlineMarkdown(item)}</li>`).join("")}</${list.type}>`;
-      list = null;
-    }
-
-    lines.forEach((rawLine) => {
-      const line = rawLine.replace(/\t/g, "  ");
-
-      if (/^\s*```/.test(line)) {
-        if (inMath) {
-          mathBuffer.push(rawLine);
-          return;
-        }
-        if (inCode) {
-          html += codeBlockHtml(codeLang, codeBuffer.join("\n"));
-          inCode = false;
-          codeBuffer = [];
-          codeLang = "";
-        } else {
-          flushParagraph();
-          flushList();
-          inCode = true;
-          codeLang = line.replace(/^\s*```/, "").trim();
-        }
-        return;
-      }
-
-      if (/^\s*\$\$\s*$/.test(line)) {
-        if (inCode) {
-          codeBuffer.push(rawLine);
-          return;
-        }
-        if (inMath) {
-          html += mathBlockHtml(mathBuffer.join("\n"));
-          inMath = false;
-          mathBuffer = [];
-        } else {
-          flushParagraph();
-          flushList();
-          inMath = true;
-        }
-        return;
-      }
-
-      if (inCode) {
-        codeBuffer.push(rawLine);
-        return;
-      }
-
-      if (inMath) {
-        mathBuffer.push(rawLine);
-        return;
-      }
-
-      if (!line.trim()) {
-        flushParagraph();
-        flushList();
-        return;
-      }
-
-      const heading = line.match(/^(#{1,3})\s+(.+)$/);
-      if (heading) {
-        flushParagraph();
-        flushList();
-        const level = heading[1].length;
-        html += `<h${level}>${inlineMarkdown(heading[2])}</h${level}>`;
-        return;
-      }
-
-      const unordered = line.match(/^\s*[-*]\s+(.+)$/);
-      const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
-      if (unordered || ordered) {
-        flushParagraph();
-        const type = unordered ? "ul" : "ol";
-        if (!list || list.type !== type) {
-          flushList();
-          list = { type, items: [] };
-        }
-        list.items.push((unordered || ordered)[1]);
-        return;
-      }
-
-      const quote = line.match(/^>\s+(.+)$/);
-      if (quote) {
-        flushParagraph();
-        flushList();
-        html += `<blockquote>${inlineMarkdown(quote[1])}</blockquote>`;
-        return;
-      }
-
-      paragraph.push(line.trim());
-    });
-
-    if (inCode) {
-      html += codeBlockHtml(codeLang, codeBuffer.join("\n"));
-    }
-    if (inMath) {
-      html += mathBlockHtml(mathBuffer.join("\n"));
-    }
-    flushParagraph();
-    flushList();
-    return html || "<p></p>";
-  }
-
-  function codeBlockHtml(language, code) {
-    const lang = language.trim();
-    const label = lang ? `<span class="code-lang">${escapeHtml(lang)}</span>` : "";
-    const highlighted = highlightCode(lang, code);
-    return `<pre>${label}<code class="hljs" data-lang="${escapeHtml(lang)}">${highlighted}</code></pre>`;
-  }
-
-  function highlightCode(language, code) {
-    const normalizedLanguage = language.toLowerCase();
-    if (!normalizedLanguage || !hljs.getLanguage(normalizedLanguage)) {
-      return escapeHtml(code);
-    }
-    try {
-      return hljs.highlight(code, { language: normalizedLanguage, ignoreIllegals: true }).value;
-    } catch (_error) {
-      return escapeHtml(code);
-    }
-  }
-
-  function mathBlockHtml(source) {
-    return `<div class="math-block">${renderMath(source, true)}</div>`;
-  }
-
-  function inlineMarkdown(text) {
-    const codeSpans = [];
-    let output = escapeHtml(text);
-    output = output.replace(/`([^`]+)`/g, (_match, code) => {
-      const token = `@@CODE${codeSpans.length}@@`;
-      codeSpans.push(`<code>${code}</code>`);
-      return token;
-    });
-    output = output.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt, source) => {
-      const resolvedSource = resolveProjectAssetUrl(unescapeHtml(source));
-      if (!resolvedSource) {
-        return missingAssetPlaceholder(unescapeHtml(source));
-      }
-      return `<img alt="${escapeHtml(unescapeHtml(alt))}" src="${escapeHtml(resolvedSource)}">`;
-    });
-    output = output.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
-    output = output.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-    output = output.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-    output = output.replace(/(^|[^\\])\$([^$\n]+?)\$/g, (_match, prefix, source) => `${prefix}${renderMath(unescapeHtml(source), false)}`);
-    codeSpans.forEach((code, index) => {
-      output = output.replace(`@@CODE${index}@@`, code);
-    });
-    return output;
-  }
-
-  function renderMath(source, displayMode) {
-    try {
-      return katex.renderToString(source.trim(), {
-        displayMode,
-        throwOnError: false,
-        strict: "warn",
-        trust: false,
-      });
-    } catch (error) {
-      return `<code class="math-error">${escapeHtml(source)}</code>`;
-    }
-  }
-
-  function unescapeHtml(value) {
-    return String(value)
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&#039;/g, "'")
-      .replace(/&amp;/g, "&");
-  }
-
-  function stripMarkdown(text) {
-    return text
-      .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-      .replace(/[*_`>#-]/g, "")
-      .trim();
-  }
-
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
-  function hashString(value) {
-    let hash = 5381;
-    for (let index = 0; index < value.length; index += 1) {
-      hash = (hash * 33) ^ value.charCodeAt(index);
-    }
-    return (hash >>> 0).toString(36);
+  function flushEditorUpdate() {
+    clearTimeout(updateTimer);
+    updateTimer = 0;
+    update();
   }
 
   function update() {
@@ -748,13 +511,12 @@ End with the takeaway.
     const warnings = collectWarnings(state.deck);
     elements.status.textContent = warnings.length
       ? warnings[0]
-      : `${state.deck.slides.length} slide${state.deck.slides.length === 1 ? "" : "s"} rendered in ${elapsed}ms`;
+      : t("renderedStatus", {
+        count: state.deck.slides.length,
+        slideWord: state.deck.slides.length === 1 ? t("slideWordSingular") : t("slideWordPlural"),
+        elapsed,
+      });
     elements.status.classList.toggle("warning", warnings.length > 0);
-    console.debug("[Slip] preview render", {
-      slides: state.deck.slides.length,
-      elapsedMs: elapsed,
-      warnings: warnings.length,
-    });
   }
 
   function collectWarnings(deck) {
@@ -762,11 +524,14 @@ End with the takeaway.
     if (state.storageWarning) warnings.push(state.storageWarning);
     const unresolvedAssets = findUnresolvedAssetReferences(state.markdown);
     if (unresolvedAssets.length) {
-      warnings.push(`Unresolved asset reference${unresolvedAssets.length === 1 ? "" : "s"}: ${formatAssetReferenceList(unresolvedAssets)}.`);
+      warnings.push(t("unresolvedAssetRefs", {
+        plural: unresolvedAssets.length === 1 ? "" : "s",
+        refs: formatAssetReferenceList(unresolvedAssets),
+      }));
     }
     const largeDataImage = state.markdown.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/);
     if (largeDataImage && largeDataImage[1].length > 1_400_000) {
-      warnings.push("Large embedded image detected. Consider V2 project assets for decks over 1-2MB.");
+      warnings.push(t("largeEmbeddedImageWarning"));
     }
     return warnings;
   }
@@ -775,7 +540,7 @@ End with the takeaway.
     const deck = state.deck;
     const isProjectMode = state.project.mode === "project";
     elements.deckTitle.textContent = deck.meta.title;
-    elements.projectMode.textContent = isProjectMode ? "Project" : "Single file";
+    elements.projectMode.textContent = isProjectMode ? t("project") : t("singleFile");
     elements.projectize.disabled = isProjectMode;
     elements.themePicker.value = ["clean", "contrast", "paper"].includes(deck.meta.theme) ? deck.meta.theme : "clean";
     elements.sizePicker.value = deck.meta.size;
@@ -787,6 +552,7 @@ End with the takeaway.
     renderOutline(deck);
     renderPreview(deck);
     renderAssetPanel();
+    updateCloudSessionStatus();
     if (state.presentationOpen) renderPresentation();
   }
 
@@ -845,10 +611,10 @@ End with the takeaway.
     frame.id = `frame-${index}`;
     frame.dataset.slideId = slide.id;
     frame.dataset.slideIndex = String(index);
-    frame.innerHTML = `<div class="slide-number">Slide ${index + 1}</div>
+    frame.innerHTML = `<div class="slide-number">${escapeHtml(t("slideN", { number: index + 1 }))}</div>
       ${slideHtml(slide, theme, size)}
-      <div class="overflow-badge" aria-hidden="true">May clip in PDF</div>
-      <div class="notes">${escapeHtml(slide.notes || "No speaker notes")}</div>`;
+      <div class="overflow-badge" aria-hidden="true">${escapeHtml(t("mayClipPdf"))}</div>
+      <div class="notes">${escapeHtml(slide.notes || t("noSpeakerNotes"))}</div>`;
     return frame;
   }
 
@@ -856,14 +622,17 @@ End with the takeaway.
     frame.id = `frame-${index}`;
     frame.dataset.slideIndex = String(index);
     const slideNumber = frame.querySelector(".slide-number");
-    if (slideNumber) slideNumber.textContent = `Slide ${index + 1}`;
+    if (slideNumber) slideNumber.textContent = t("slideN", { number: index + 1 });
     const slideElement = frame.querySelector(".slide");
     if (slideElement) slideElement.setAttribute("aria-label", slide.title);
   }
 
   function slideHtml(slide, theme, size) {
     return `<section class="slide theme-${theme} size-${size}" aria-label="${escapeHtml(slide.title)}">
-      <div class="slide-inner">${renderMarkdown(slide.content)}</div>
+      <div class="slide-inner">${renderMarkdown(slide.content, {
+        resolveAssetUrl: resolveProjectAssetUrl,
+        renderMissingAsset: missingAssetPlaceholder,
+      })}</div>
     </section>`;
   }
 
@@ -909,29 +678,7 @@ End with the takeaway.
     if (elements.customCssEditor.value !== css) {
       elements.customCssEditor.value = css;
     }
-    elements.customCssStatus.textContent = css ? "Applied to slide content." : "No custom CSS.";
-  }
-
-  function scopeCustomCss(css) {
-    if (!css.trim()) return "";
-    return css
-      .split("}")
-      .map((rule) => rule.trim())
-      .filter(Boolean)
-      .map((rule) => {
-        const parts = rule.split("{");
-        if (parts.length < 2) return "";
-        const selectors = parts.shift().trim();
-        const declarations = parts.join("{").trim();
-        if (!selectors || !declarations || selectors.startsWith("@")) return "";
-        const scopedSelectors = selectors
-          .split(",")
-          .map((selector) => `.slide ${selector.trim()}`)
-          .join(", ");
-        return `${scopedSelectors} { ${declarations} }`;
-      })
-      .filter(Boolean)
-      .join("\n");
+    elements.customCssStatus.textContent = css ? t("customCssApplied") : t("customCssEmpty");
   }
 
   function detectSlideOverflow() {
@@ -964,15 +711,15 @@ End with the takeaway.
       .filter(Boolean);
 
     if (overflowIndexes.length) {
-      elements.status.textContent = `${formatSlideList(overflowIndexes)} may clip in print/PDF.`;
+      elements.status.textContent = t("mayClipStatus", { slides: formatSlideList(overflowIndexes) });
       elements.status.classList.add("warning");
     }
   }
 
   function formatSlideList(slideNumbers) {
-    if (slideNumbers.length === 1) return `Slide ${slideNumbers[0]}`;
-    if (slideNumbers.length <= 4) return `Slides ${slideNumbers.join(", ")}`;
-    return `Slides ${slideNumbers.slice(0, 4).join(", ")} and ${slideNumbers.length - 4} more`;
+    if (slideNumbers.length === 1) return t("slideListSingle", { number: slideNumbers[0] });
+    if (slideNumbers.length <= 4) return t("slideListFew", { numbers: slideNumbers.join(", ") });
+    return t("slideListMany", { numbers: slideNumbers.slice(0, 4).join(", "), count: slideNumbers.length - 4 });
   }
 
   function renderAssetPanel() {
@@ -982,7 +729,7 @@ End with the takeaway.
     elements.assetSort.disabled = !isProjectMode;
 
     if (!isProjectMode) {
-      elements.assetList.innerHTML = '<p class="asset-empty">Projectize or import a project to manage assets.</p>';
+      elements.assetList.innerHTML = `<p class="asset-empty">${escapeHtml(t("assetPanelInactive"))}</p>`;
       return;
     }
 
@@ -992,7 +739,7 @@ End with the takeaway.
     const assets = sortAssets([...state.project.assets.values()], usage);
 
     if (!assets.length) {
-      elements.assetList.innerHTML = '<p class="asset-empty">No project assets yet.</p>';
+      elements.assetList.innerHTML = `<p class="asset-empty">${escapeHtml(t("noProjectAssets"))}</p>`;
       return;
     }
 
@@ -1007,12 +754,12 @@ End with the takeaway.
         <div class="asset-details">
           <div class="asset-name" title="${escapeHtml(asset.filename)}">${escapeHtml(asset.filename)}</div>
           <div class="asset-path" title="${escapeHtml(asset.path)}">${escapeHtml(asset.path)}</div>
-          <div class="asset-meta">${formatBytes(asset.size)} · used ${useCount} time${useCount === 1 ? "" : "s"}</div>
-          ${duplicates.has(asset.hash) ? '<div class="asset-duplicate">Duplicate content</div>' : ""}
+          <div class="asset-meta">${formatBytes(asset.size)} · ${escapeHtml(t("usedTimes", { count: useCount, plural: useCount === 1 ? "" : "s" }))}</div>
+          ${duplicates.has(asset.hash) ? `<div class="asset-duplicate">${escapeHtml(t("duplicateContent"))}</div>` : ""}
           <div class="asset-item-actions">
-            <button type="button" data-action="insert">Insert</button>
-            <button type="button" data-action="rename">Rename</button>
-            <button type="button" data-action="remove">Remove</button>
+            <button type="button" data-action="insert">${escapeHtml(t("insert"))}</button>
+            <button type="button" data-action="rename">${escapeHtml(t("rename"))}</button>
+            <button type="button" data-action="remove">${escapeHtml(t("remove"))}</button>
           </div>
         </div>`;
       elements.assetList.appendChild(item);
@@ -1023,7 +770,7 @@ End with the takeaway.
       button.type = "button";
       button.className = "asset-show-more";
       button.dataset.action = "show-more-assets";
-      button.textContent = `Show ${Math.min(60, assets.length - visibleAssets.length)} more assets`;
+      button.textContent = t("showMoreAssets", { count: Math.min(60, assets.length - visibleAssets.length) });
       elements.assetList.appendChild(button);
     }
   }
@@ -1041,7 +788,7 @@ End with the takeaway.
 
   function assetThumbnailHtml(asset) {
     if (!asset.mime.startsWith("image/")) {
-      return '<div class="asset-thumb asset-thumb-file" aria-hidden="true">File</div>';
+      return `<div class="asset-thumb asset-thumb-file" aria-hidden="true">${escapeHtml(t("fileThumb"))}</div>`;
     }
     const cacheKey = `${asset.path}:${asset.hash}`;
     if (!state.assetThumbnailCache.has(cacheKey)) {
@@ -1080,7 +827,7 @@ End with the takeaway.
 
   function formatAssetReferenceList(paths) {
     if (paths.length <= 3) return paths.join(", ");
-    return `${paths.slice(0, 3).join(", ")} and ${paths.length - 3} more`;
+    return t("andMore", { items: paths.slice(0, 3).join(", "), count: paths.length - 3 });
   }
 
   function rewriteAssetReferences(markdown, oldPath, newPath) {
@@ -1143,7 +890,8 @@ End with the takeaway.
 
   function scrollToSlide(index) {
     state.activeSlide = index;
-    document.getElementById(`frame-${index}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    state.ignorePreviewScrollUntil = Date.now() + 300;
+    document.getElementById(`frame-${index}`)?.scrollIntoView({ behavior: "auto", block: "start" });
     renderOutline(state.deck);
   }
 
@@ -1160,7 +908,10 @@ End with the takeaway.
 
     const result = inlineProjectAssetReferences(getEditorValue());
     if (result.unresolved.length) {
-      openEmbeddedExportDialog(`Embedded Markdown export refused: unresolved asset reference${result.unresolved.length === 1 ? "" : "s"}: ${formatAssetReferenceList(result.unresolved)}.`);
+      openEmbeddedExportDialog(t("embeddedExportRefusedUnresolved", {
+        plural: result.unresolved.length === 1 ? "" : "s",
+        refs: formatAssetReferenceList(result.unresolved),
+      }));
       return;
     }
 
@@ -1171,7 +922,10 @@ End with the takeaway.
     }
 
     downloadBlob(new Blob([result.markdown], { type: "text/markdown;charset=utf-8" }), `${slugify(state.deck.meta.title)}-self-contained.md`);
-    elements.status.textContent = `Embedded Markdown exported with ${result.inlinedAssets.length} asset${result.inlinedAssets.length === 1 ? "" : "s"} inlined.`;
+    elements.status.textContent = t("embeddedExported", {
+      count: result.inlinedAssets.length,
+      plural: result.inlinedAssets.length === 1 ? "" : "s",
+    });
     elements.status.classList.remove("warning");
   }
 
@@ -1184,6 +938,563 @@ End with the takeaway.
     elements.embeddedExportDialog.hidden = true;
   }
 
+  function openCloudAuthDialog(message) {
+    elements.cloudAuthMessage.textContent = message;
+    elements.cloudAuthDialog.hidden = false;
+  }
+
+  function closeCloudAuthDialog() {
+    elements.cloudAuthDialog.hidden = true;
+  }
+
+  async function startCloudAuth(providerId) {
+    closeToolbarMenus();
+    if (providerId === "google") {
+      const result = await startGoogleTokenAuth(cloudAuthProviders.google, {
+        onConfigurationMissing: (provider) => openCloudAuthDialog(t("cloudMissingClient", {
+          provider: provider.label,
+          envKey: provider.envKey,
+        })),
+        onAuthenticated: (session) => {
+          state.cloudSession = session;
+          clearCloudBinding();
+          elements.status.textContent = t("cloudAuthComplete", { provider: session.providerLabel });
+          elements.status.classList.remove("warning");
+        },
+        onError: (error) => openCloudAuthDialog(t("cloudAuthFailed", { reason: error.message })),
+      });
+      if (result?.status === "authenticated") return;
+      return;
+    }
+    await beginCloudAuth(providerId, cloudAuthProviders, {
+      onConfigurationMissing: (provider) => openCloudAuthDialog(t("cloudMissingClient", {
+        provider: provider.label,
+        envKey: provider.envKey,
+      })),
+    });
+  }
+
+  async function openCloudPicker() {
+    closeToolbarMenus();
+    if (!state.cloudSession) {
+      openCloudAuthDialog(t("cloudOpenRequiresAuth"));
+      return;
+    }
+    state.cloudOpenError = "";
+    elements.cloudSearch.value = "";
+    elements.cloudOpenDialog.hidden = false;
+    renderCloudOpenDialog();
+    await refreshCloudFiles();
+  }
+
+  function closeCloudPicker() {
+    elements.cloudOpenDialog.hidden = true;
+  }
+
+  async function refreshCloudFiles() {
+    if (!state.cloudSession) return;
+    state.cloudLoading = true;
+    state.cloudOpenError = "";
+    renderCloudOpenDialog();
+    try {
+      const connector = createActiveCloudConnector();
+      state.cloudFiles = await connector.listFiles({ query: elements.cloudSearch.value });
+    } catch (error) {
+      state.cloudOpenError = cloudConnectorMessage(error);
+      state.cloudFiles = [];
+    } finally {
+      state.cloudLoading = false;
+      renderCloudOpenDialog();
+    }
+  }
+
+  function renderCloudOpenDialog() {
+    if (!elements.cloudOpenDialog || elements.cloudOpenDialog.hidden) return;
+    const provider = state.cloudSession?.providerLabel || "";
+    if (state.cloudLoading) {
+      elements.cloudOpenSummary.textContent = t("cloudLoadingFiles", { provider });
+    } else if (state.cloudOpenError) {
+      elements.cloudOpenSummary.textContent = t("cloudOpenFailed", { message: state.cloudOpenError });
+    } else {
+      elements.cloudOpenSummary.textContent = state.cloudSession
+        ? t("cloudOpenSummary", { provider })
+        : t("cloudOpenRequiresAuth");
+    }
+    elements.cloudOpenSummary.classList.toggle("warning", Boolean(state.cloudOpenError));
+    renderCloudFileList(elements.cloudFileList, state.cloudFiles, t("noCloudFiles"));
+    const recent = state.cloudRecentFiles.filter((file) => file.provider === state.cloudSession?.provider);
+    renderCloudFileList(elements.cloudRecentList, recent, t("noRecentCloudFiles"));
+  }
+
+  function renderCloudFileList(container, files, emptyMessage) {
+    container.innerHTML = "";
+    if (!files.length) {
+      const empty = document.createElement("p");
+      empty.className = "cloud-file-empty";
+      empty.textContent = emptyMessage;
+      container.appendChild(empty);
+      return;
+    }
+    files.forEach((file) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "cloud-file-item";
+      button.dataset.fileId = file.id;
+      button.innerHTML = `<span class="cloud-file-name">${escapeHtml(file.name)}</span>
+        <span class="cloud-file-meta">${escapeHtml(formatCloudFileMeta(file))}</span>`;
+      container.appendChild(button);
+    });
+  }
+
+  function formatCloudFileMeta(file) {
+    const parts = [file.provider === "google" ? t("googleDrive") : t("oneDrive")];
+    if (file.size) parts.push(formatBytes(file.size));
+    if (file.modifiedTime) parts.push(new Date(file.modifiedTime).toLocaleDateString());
+    return parts.join(" · ");
+  }
+
+  async function openCloudFile(fileId) {
+    if (!state.cloudSession) return;
+    if (!confirmDiscardUnsavedCloudChanges()) return;
+    state.cloudLoading = true;
+    state.cloudOpenError = "";
+    renderCloudOpenDialog();
+    try {
+      const connector = createActiveCloudConnector();
+      const opened = await connector.openFile(fileId);
+      await loadOpenedCloudFile(opened);
+      markCloudSaved(opened.metadata);
+      rememberRecentCloudFile(opened.metadata);
+      closeCloudPicker();
+      elements.status.textContent = t("cloudFileOpened", { name: opened.metadata.name });
+      elements.status.classList.remove("warning");
+    } catch (error) {
+      state.cloudOpenError = cloudConnectorMessage(error);
+      elements.status.textContent = t("cloudOpenFailed", { message: state.cloudOpenError });
+      elements.status.classList.add("warning");
+    } finally {
+      state.cloudLoading = false;
+      renderCloudOpenDialog();
+    }
+  }
+
+  async function loadOpenedCloudFile(opened) {
+    if (opened.metadata.name.toLowerCase().endsWith(".zip") || opened.metadata.mimeType === "application/zip") {
+      const blob = opened.blob || new Blob([opened.content || ""], { type: "application/zip" });
+      await importProjectPackageBlob(blob);
+      return;
+    }
+    state.project = createSingleFileProject();
+    clearCloudBinding();
+    clearCurrentProjectStorage().catch((error) => {
+      state.storageWarning = t("clearProjectFailed", { message: error.message });
+    });
+    setEditorValue(opened.content || "");
+  }
+
+  async function saveCloudFile() {
+    closeToolbarMenus();
+    if (!state.cloudSession) {
+      openCloudAuthDialog(t("cloudSaveRequiresAuth"));
+      return;
+    }
+    flushEditorUpdate();
+    if (!state.cloudFile) {
+      openCloudSaveDialog();
+      return;
+    }
+    await writeCloudFile(state.cloudFile);
+  }
+
+  function openCloudSaveDialog() {
+    closeToolbarMenus();
+    if (!state.cloudSession) {
+      openCloudAuthDialog(t("cloudSaveRequiresAuth"));
+      return;
+    }
+    elements.cloudSaveSummary.textContent = t("cloudSaveAsSummary", {
+      provider: state.cloudSession.providerLabel,
+    });
+    elements.cloudSaveSummary.classList.remove("warning");
+    elements.cloudSaveName.value = defaultCloudSaveName();
+    elements.cloudSaveDialog.hidden = false;
+    elements.cloudSaveName.focus();
+    elements.cloudSaveName.select();
+  }
+
+  function closeCloudSaveDialog() {
+    elements.cloudSaveDialog.hidden = true;
+  }
+
+  async function confirmCloudSaveAs() {
+    const name = normalizeCloudSaveName(elements.cloudSaveName.value);
+    if (!name) {
+      elements.cloudSaveSummary.textContent = t("cloudSaveNameRequired");
+      elements.cloudSaveSummary.classList.add("warning");
+      return;
+    }
+    flushEditorUpdate();
+    closeCloudSaveDialog();
+    await createCloudFile(name);
+  }
+
+  async function createCloudFile(name) {
+    if (!state.cloudSession) return;
+    try {
+      const connector = createActiveCloudConnector();
+      const payload = await createCloudSavePayload({ name });
+      const metadata = await connector.createFile(payload);
+      markCloudSaved(metadata);
+      rememberRecentCloudFile(metadata);
+      elements.status.textContent = t("cloudFileSavedAs", { name: metadata.name });
+      elements.status.classList.remove("warning");
+    } catch (error) {
+      elements.status.textContent = t("cloudSaveFailed", { message: cloudConnectorMessage(error) });
+      elements.status.classList.add("warning");
+    }
+  }
+
+  async function writeCloudFile(metadata) {
+    let payload = null;
+    try {
+      const connector = createActiveCloudConnector();
+      payload = await createCloudSavePayload({ name: metadata.name, target: metadata });
+      state.cloudSyncStatus = "syncing";
+      updateCloudSessionStatus();
+      const saved = await connector.saveFile(metadata.id, {
+        ...payload,
+        expectedRevisionId: metadata.revisionId,
+      });
+      markCloudSaved(saved);
+      rememberRecentCloudFile(saved);
+      elements.status.textContent = t("cloudFileSaved", { name: saved.name });
+      elements.status.classList.remove("warning");
+    } catch (error) {
+      if (error instanceof CloudConnectorError && error.code === cloudConnectorErrorCodes.conflict) {
+        openCloudConflictDialog(error.details.current || metadata);
+        return;
+      }
+      if (payload && isRetryableCloudSaveError(error)) {
+        await bufferPendingCloudWrite(metadata, payload, cloudDocumentHash());
+        elements.status.textContent = t("cloudSaveBuffered", { name: metadata.name });
+        elements.status.classList.add("warning");
+        return;
+      }
+      state.cloudSyncStatus = hasUnsavedCloudChanges() ? "local" : "synced";
+      updateCloudSessionStatus();
+      elements.status.textContent = t("cloudSaveFailed", { message: cloudConnectorMessage(error) });
+      elements.status.classList.add("warning");
+    }
+  }
+
+  function openCloudConflictDialog(currentMetadata) {
+    state.cloudConflict = {
+      current: currentMetadata,
+      local: state.cloudFile,
+    };
+    elements.cloudConflictMessage.textContent = t("cloudConflictMessage", {
+      name: currentMetadata?.name || state.cloudFile?.name || t("cloudFile"),
+    });
+    elements.cloudConflictDialog.hidden = false;
+    state.cloudSyncStatus = "conflict";
+    updateCloudSessionStatus();
+    elements.status.textContent = t("cloudConflictStatus");
+    elements.status.classList.add("warning");
+  }
+
+  function closeCloudConflictDialog() {
+    elements.cloudConflictDialog.hidden = true;
+  }
+
+  async function reloadCloudConflictRemote() {
+    const current = state.cloudConflict?.current;
+    if (!current || !state.cloudSession) return;
+    closeCloudConflictDialog();
+    try {
+      const connector = createActiveCloudConnector();
+      const opened = await connector.openFile(current.id);
+      await loadOpenedCloudFile(opened);
+      markCloudSaved(opened.metadata);
+      rememberRecentCloudFile(opened.metadata);
+      elements.status.textContent = t("cloudConflictReloaded", { name: opened.metadata.name });
+      elements.status.classList.remove("warning");
+    } catch (error) {
+      elements.status.textContent = t("cloudOpenFailed", { message: cloudConnectorMessage(error) });
+      elements.status.classList.add("warning");
+    } finally {
+      state.cloudConflict = null;
+    }
+  }
+
+  async function duplicateCloudConflictLocal() {
+    const local = state.cloudConflict?.local || state.cloudFile;
+    if (!local) return;
+    closeCloudConflictDialog();
+    state.cloudConflict = null;
+    await createCloudFile(duplicateCloudFilename(local.name));
+  }
+
+  async function overwriteCloudConflictRemote() {
+    const current = state.cloudConflict?.current;
+    if (!current || !state.cloudSession) return;
+    closeCloudConflictDialog();
+    try {
+      const connector = createActiveCloudConnector();
+      const payload = await createCloudSavePayload({ name: current.name, target: current });
+      const saved = await connector.saveFile(current.id, payload);
+      markCloudSaved(saved);
+      rememberRecentCloudFile(saved);
+      elements.status.textContent = t("cloudConflictOverwritten", { name: saved.name });
+      elements.status.classList.remove("warning");
+    } catch (error) {
+      elements.status.textContent = t("cloudSaveFailed", { message: cloudConnectorMessage(error) });
+      elements.status.classList.add("warning");
+    } finally {
+      state.cloudConflict = null;
+    }
+  }
+
+  function duplicateCloudFilename(name) {
+    const dot = name.lastIndexOf(".");
+    if (dot > 0) return `${name.slice(0, dot)} local copy${name.slice(dot)}`;
+    return `${name} local copy`;
+  }
+
+  async function bufferPendingCloudWrite(metadata, payload, documentHash) {
+    const pending = {
+      provider: state.cloudSession.provider,
+      file: metadata,
+      payload: await serializeCloudSavePayload(payload),
+      expectedRevisionId: metadata.revisionId,
+      documentHash,
+      previousSavedHash: state.cloudSavedHash,
+      createdAt: new Date().toISOString(),
+    };
+    state.pendingCloudWrite = pending;
+    state.cloudSyncStatus = "pending";
+    localStorage.setItem(cloudPendingWriteKey, JSON.stringify(pending));
+    updateCloudSessionStatus();
+  }
+
+  async function serializeCloudSavePayload(payload) {
+    if (payload.content instanceof Blob) {
+      return {
+        name: payload.name,
+        mimeType: payload.mimeType,
+        contentKind: "data-url",
+        content: await readBlobAsDataUrl(payload.content),
+      };
+    }
+    return {
+      name: payload.name,
+      mimeType: payload.mimeType,
+      contentKind: "text",
+      content: String(payload.content ?? ""),
+    };
+  }
+
+  function deserializeCloudSavePayload(payload) {
+    if (payload.contentKind === "data-url") {
+      return {
+        name: payload.name,
+        mimeType: payload.mimeType,
+        content: dataUrlToBlob(payload.content),
+      };
+    }
+    return {
+      name: payload.name,
+      mimeType: payload.mimeType,
+      content: payload.content || "",
+    };
+  }
+
+  function readPendingCloudWrite() {
+    try {
+      const pending = JSON.parse(localStorage.getItem(cloudPendingWriteKey) || "null");
+      if (!pending?.provider || !pending.file?.id || !pending.payload?.name) return null;
+      return pending;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function clearPendingCloudWrite() {
+    state.pendingCloudWrite = null;
+    localStorage.removeItem(cloudPendingWriteKey);
+  }
+
+  function restorePendingCloudWriteForSession() {
+    if (!state.cloudSession || !state.pendingCloudWrite) return;
+    if (state.pendingCloudWrite.provider !== state.cloudSession.provider) return;
+    if (!state.cloudFile) state.cloudFile = state.pendingCloudWrite.file;
+    state.cloudSavedHash = state.pendingCloudWrite.previousSavedHash || "";
+    state.cloudSyncStatus = "pending";
+    updateCloudSessionStatus();
+    if (navigator.onLine !== false) {
+      retryPendingCloudWrite();
+    }
+  }
+
+  async function retryPendingCloudWrite() {
+    const pending = state.pendingCloudWrite;
+    if (!pending || !state.cloudSession || pending.provider !== state.cloudSession.provider) return;
+    if (pending.documentHash !== cloudDocumentHash()) {
+      state.cloudSyncStatus = "pending";
+      updateCloudSessionStatus();
+      elements.status.textContent = t("cloudPendingStale");
+      elements.status.classList.add("warning");
+      return;
+    }
+    try {
+      state.cloudSyncStatus = "syncing";
+      updateCloudSessionStatus();
+      const connector = createActiveCloudConnector();
+      const saved = await connector.saveFile(pending.file.id, {
+        ...deserializeCloudSavePayload(pending.payload),
+        expectedRevisionId: pending.expectedRevisionId,
+      });
+      state.cloudFile = saved;
+      state.cloudSavedHash = pending.documentHash;
+      state.cloudSyncStatus = "synced";
+      rememberRecentCloudFile(saved);
+      clearPendingCloudWrite();
+      updateCloudSessionStatus();
+      elements.status.textContent = t("cloudPendingSynced", { name: saved.name });
+      elements.status.classList.remove("warning");
+    } catch (error) {
+      if (error instanceof CloudConnectorError && error.code === cloudConnectorErrorCodes.conflict) {
+        openCloudConflictDialog(error.details.current || pending.file);
+        return;
+      }
+      state.cloudSyncStatus = "pending";
+      updateCloudSessionStatus();
+      elements.status.textContent = t("cloudPendingRetryFailed", { message: cloudConnectorMessage(error) });
+      elements.status.classList.add("warning");
+    }
+  }
+
+  function isRetryableCloudSaveError(error) {
+    return navigator.onLine === false
+      || !(error instanceof CloudConnectorError)
+      || error.code === cloudConnectorErrorCodes.network;
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    const match = String(dataUrl).match(/^data:([^;,]+)?(;base64)?,(.*)$/);
+    if (!match) return new Blob([String(dataUrl)], { type: "application/octet-stream" });
+    const mime = match[1] || "application/octet-stream";
+    if (!match[2]) {
+      return new Blob([decodeURIComponent(match[3])], { type: mime });
+    }
+    const binary = atob(match[3]);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return new Blob([bytes], { type: mime });
+  }
+
+  async function createCloudSavePayload({ name, target = null }) {
+    const saveAsPackage = shouldSaveAsProjectPackage(name, target);
+    if (saveAsPackage) {
+      syncProjectFromDeck();
+      const blob = await buildProjectPackageBlob({
+        markdown: getEditorValue(),
+        manifest: state.project.manifest || createProjectManifest(state.deck, []),
+        assets: [...state.project.assets.values()],
+      });
+      return {
+        name: ensureExtension(name, ".zip"),
+        content: blob,
+        mimeType: "application/zip",
+      };
+    }
+    return {
+      name: ensureMarkdownExtension(name),
+      content: getEditorValue(),
+      mimeType: "text/markdown",
+    };
+  }
+
+  function shouldSaveAsProjectPackage(name, target) {
+    if (target) {
+      return target.mimeType === "application/zip" || target.name.toLowerCase().endsWith(".zip");
+    }
+    return state.project.mode === "project" || name.toLowerCase().endsWith(".zip");
+  }
+
+  function defaultCloudSaveName() {
+    if (state.cloudFile?.name) return state.cloudFile.name;
+    const base = slugify(state.deck?.meta.title || "deck");
+    return state.project.mode === "project" ? `${base}.zip` : `${base}.md`;
+  }
+
+  function normalizeCloudSaveName(name) {
+    return sanitizeFilename(String(name || "").trim());
+  }
+
+  function ensureMarkdownExtension(name) {
+    return /\.(md|markdown)$/i.test(name) ? name : `${name}.md`;
+  }
+
+  function ensureExtension(name, extension) {
+    return name.toLowerCase().endsWith(extension) ? name : `${name}${extension}`;
+  }
+
+  function createActiveCloudConnector() {
+    if (state.cloudSession?.provider === "google") return createGoogleDriveConnector(state.cloudSession);
+    if (state.cloudSession?.provider === "microsoft") return createOneDriveConnector(state.cloudSession);
+    throw new CloudConnectorError("unsupported_provider", t("cloudUnsupportedProvider"));
+  }
+
+  function cloudConnectorMessage(error) {
+    if (error instanceof CloudConnectorError) return error.message;
+    return error?.message || String(error);
+  }
+
+  function readRecentCloudFiles() {
+    try {
+      const files = JSON.parse(localStorage.getItem(cloudRecentFilesKey) || "[]");
+      return Array.isArray(files) ? files : [];
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  function rememberRecentCloudFile(metadata) {
+    state.cloudRecentFiles = [
+      { ...metadata, openedAt: new Date().toISOString() },
+      ...state.cloudRecentFiles.filter((file) => !(file.provider === metadata.provider && file.id === metadata.id)),
+    ].slice(0, 8);
+    localStorage.setItem(cloudRecentFilesKey, JSON.stringify(state.cloudRecentFiles));
+  }
+
+  function clearRecentCloudFiles(provider) {
+    state.cloudRecentFiles = provider
+      ? state.cloudRecentFiles.filter((file) => file.provider !== provider)
+      : [];
+    if (state.cloudRecentFiles.length) {
+      localStorage.setItem(cloudRecentFilesKey, JSON.stringify(state.cloudRecentFiles));
+    } else {
+      localStorage.removeItem(cloudRecentFilesKey);
+    }
+  }
+
+  function disconnectCloudSession() {
+    closeToolbarMenus();
+    if (!confirmDiscardUnsavedCloudChanges()) return;
+    const session = state.cloudSession;
+    revokeCloudAuthSession(session);
+    clearCloudAuthSession();
+    state.cloudSession = null;
+    clearCloudBinding();
+    clearPendingCloudWrite();
+    clearRecentCloudFiles(session?.provider);
+    state.cloudFiles = [];
+    elements.status.textContent = t("cloudDisconnected");
+    elements.status.classList.remove("warning");
+  }
+
   function validateEmbeddedMarkdownSize(assetPaths) {
     const maxSingleImageBytes = 350 * 1024;
     const maxTotalImageBytes = 1.5 * 1024 * 1024;
@@ -1192,12 +1503,12 @@ End with the takeaway.
       .filter((asset) => asset && asset.mime.startsWith("image/"));
     const oversized = imageAssets.find((asset) => asset.size > maxSingleImageBytes);
     if (oversized) {
-      return `Embedded Markdown export refused: ${oversized.path} is ${formatBytes(oversized.size)}, above the 350 KB per-image limit.`;
+      return t("embeddedExportRefusedSingle", { path: oversized.path, size: formatBytes(oversized.size) });
     }
 
     const total = imageAssets.reduce((sum, asset) => sum + asset.size, 0);
     if (total > maxTotalImageBytes) {
-      return `Embedded Markdown export refused: total image size is ${formatBytes(total)}, above the 1.5 MB limit.`;
+      return t("embeddedExportRefusedTotal", { size: formatBytes(total) });
     }
     return "";
   }
@@ -1226,27 +1537,26 @@ End with the takeaway.
 
   async function exportProjectPackage() {
     if (state.project.mode !== "project") {
-      elements.status.textContent = "Projectize or import a project before exporting a package.";
+      elements.status.textContent = t("projectizeBeforePackage");
       elements.status.classList.add("warning");
       return;
     }
 
     try {
-      const zip = new JSZip();
       syncProjectFromDeck();
-      zip.file("slides.md", getEditorValue());
-      zip.file("config.json", JSON.stringify(state.project.manifest, null, 2));
-      state.project.assets.forEach((asset) => {
-        const content = dataUrlToZipContent(asset.dataUrl);
-        zip.file(asset.path, content.data, { base64: content.base64 });
+      const blob = await buildProjectPackageBlob({
+        markdown: getEditorValue(),
+        manifest: state.project.manifest,
+        assets: [...state.project.assets.values()],
       });
-
-      const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
       downloadBlob(blob, `${slugify(state.deck.meta.title)}.zip`);
-      elements.status.textContent = `Project package exported with ${state.project.assets.size} asset${state.project.assets.size === 1 ? "" : "s"}.`;
+      elements.status.textContent = t("packageExported", {
+        count: state.project.assets.size,
+        plural: state.project.assets.size === 1 ? "" : "s",
+      });
       elements.status.classList.remove("warning");
     } catch (error) {
-      elements.status.textContent = `Project package export failed: ${error.message}`;
+      elements.status.textContent = t("packageExportFailed", { message: error.message });
       elements.status.classList.add("warning");
     }
   }
@@ -1258,13 +1568,6 @@ End with the takeaway.
     link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
-  }
-
-  function dataUrlToZipContent(dataUrl) {
-    const match = String(dataUrl).match(/^data:([^;,]+)?(;base64)?,(.*)$/);
-    if (!match) return { data: dataUrl, base64: false };
-    if (match[2]) return { data: match[3], base64: true };
-    return { data: decodeURIComponent(match[3]), base64: false };
   }
 
   function slugify(value) {
@@ -1280,7 +1583,7 @@ End with the takeaway.
   function migrateCurrentDeckToProject() {
     state.project = createProjectFromMarkdown(getEditorValue());
     syncProjectFromDeck();
-    elements.status.textContent = "Project mode ready: config.json and slides.md are defined.";
+    elements.status.textContent = t("projectModeReady");
     elements.status.classList.remove("warning");
     render();
     scheduleProjectSave();
@@ -1303,6 +1606,11 @@ End with the takeaway.
 
   function requestNewDeck() {
     closeToolbarMenus();
+    if (hasUnsavedCloudChanges()) {
+      elements.newDeckMessage.textContent = t("discardUnsavedCloudChanges");
+      elements.newDeckDialog.hidden = false;
+      return;
+    }
     if (!hasUserContent()) {
       startNewDeck();
       return;
@@ -1320,9 +1628,9 @@ End with the takeaway.
   }
 
   function newDeckWarningMessage() {
-    const parts = ["Starting a new deck will discard the current content."];
+    const parts = [t("newDeckDiscard")];
     if (state.project.mode !== "project") {
-      parts.push("The current deck is not saved as a project.");
+      parts.push(t("notSavedAsProject"));
     }
     return parts.join(" ");
   }
@@ -1338,18 +1646,18 @@ End with the takeaway.
 
   function startNewDeck() {
     state.project = createSingleFileProject();
+    clearCloudBinding();
     state.storageWarning = "";
     state.activeSlide = 0;
     state.overflowSlides = new Set();
     state.previewKeys = new Map();
     state.assetThumbnailCache = new Map();
     resetAssetPanelPaging();
-    slideParseCache = new Map();
     clearCurrentProjectStorage().catch((error) => {
-      state.storageWarning = `Could not clear stored project: ${error.message}`;
+      state.storageWarning = t("clearProjectFailed", { message: error.message });
     });
     setEditorValue(newDeckMarkdown);
-    elements.status.textContent = "Started a new deck from the template.";
+    elements.status.textContent = t("newDeckStarted");
     elements.status.classList.remove("warning");
   }
 
@@ -1377,7 +1685,7 @@ End with the takeaway.
       state.storageReady = true;
       await restoreCurrentProject();
     } catch (error) {
-      state.storageWarning = `Project storage unavailable: ${error.message}`;
+      state.storageWarning = t("storageUnavailable", { message: error.message });
       state.storageReady = false;
     } finally {
       update();
@@ -1389,7 +1697,7 @@ End with the takeaway.
     if (!document) return;
 
     if (typeof document.markdown !== "string" || !document.manifest) {
-      state.storageWarning = "Stored project is invalid. Using the current single-file deck.";
+      state.storageWarning = t("storedProjectInvalid", { message: "invalid document" });
       return;
     }
 
@@ -1408,7 +1716,10 @@ End with the takeaway.
     state.project = createProjectFromMarkdown(document.markdown, assetRecords, document.manifest);
     setEditorValueWithoutUpdate(document.markdown);
     if (storedAssets.missing.length) {
-      state.storageWarning = `Project restored with ${storedAssets.missing.length} missing asset record${storedAssets.missing.length === 1 ? "" : "s"}. Re-import missing files.`;
+      state.storageWarning = t("missingAssetRecords", {
+        count: storedAssets.missing.length,
+        plural: storedAssets.missing.length === 1 ? "" : "s",
+      });
     } else {
       state.storageWarning = "";
     }
@@ -1457,7 +1768,7 @@ End with the takeaway.
     state.saveTimer = window.setTimeout(() => {
       state.saveTimer = 0;
       saveCurrentProject().catch((error) => {
-        state.storageWarning = `Project autosave failed: ${error.message}`;
+        state.storageWarning = t("saveProjectFailed", { message: error.message });
         render();
       });
     }, 250);
@@ -1488,7 +1799,7 @@ End with the takeaway.
     });
 
     await idbTransactionComplete(transaction);
-    if (state.storageWarning.startsWith("Project autosave failed:")) {
+    if (state.storageWarning.startsWith(t("saveProjectFailed", { message: "" }))) {
       state.storageWarning = "";
       render();
     }
@@ -1578,7 +1889,7 @@ End with the takeaway.
     const markdown = getEditorValue();
     const draft = createAutoSplitDraft(markdown);
     if (draft.error) {
-      elements.status.textContent = draft.error;
+      elements.status.textContent = t(draft.error);
       elements.status.classList.add("warning");
       return;
     }
@@ -1589,14 +1900,14 @@ End with the takeaway.
   function createAutoSplitDraft(markdown) {
     const parsed = parseDeck(markdown);
     if (parsed.slides.length > 1) {
-      return { error: "Auto Split skipped: deck already contains slide separators." };
+      return { error: "autoSplitSkippedSeparators" };
     }
 
     const parts = splitFrontmatterBlock(markdown);
     const customCss = extractCustomCss(parts.body);
     const sections = splitMarkdownSections(customCss.body.trim());
     if (sections.length <= 1) {
-      return { error: "Auto Split needs at least two top-level headings." };
+      return { error: "autoSplitNeedsHeadings" };
     }
 
     const slides = sections.flatMap((section) => splitOversizedSection(section));
@@ -1659,13 +1970,13 @@ End with the takeaway.
   }
 
   function renderAutoSplitDialog(draft) {
-    elements.autoSplitSummary.textContent = `Auto Split will create ${draft.slides.length} slides. Review the generated outline before accepting.`;
+    elements.autoSplitSummary.textContent = t("autoSplitSummary", { count: draft.slides.length });
     elements.autoSplitList.innerHTML = "";
     draft.slides.forEach((slide) => {
       const item = document.createElement("li");
       item.innerHTML = `<span class="split-review-index">${slide.index + 1}</span>
         <span class="split-review-title">${escapeHtml(slide.title)}</span>
-        <span class="split-review-meta">${slide.lineCount} lines</span>`;
+        <span class="split-review-meta">${escapeHtml(t("lineCount", { count: slide.lineCount }))}</span>`;
       elements.autoSplitList.appendChild(item);
     });
     elements.autoSplitDialog.hidden = false;
@@ -1674,7 +1985,7 @@ End with the takeaway.
   function acceptAutoSplit() {
     if (!state.autoSplitDraft) return;
     setEditorValue(state.autoSplitDraft.markdown);
-    elements.status.textContent = `Auto Split applied: ${state.autoSplitDraft.slides.length} slides.`;
+    elements.status.textContent = t("autoSplitApplied", { count: state.autoSplitDraft.slides.length });
     elements.status.classList.remove("warning");
     closeAutoSplitDialog();
   }
@@ -1715,12 +2026,23 @@ End with the takeaway.
     const nextSlide = deck.slides[state.activeSlide + 1];
     const theme = ["clean", "contrast", "paper"].includes(deck.meta.theme) ? deck.meta.theme : "clean";
     elements.presentationSlide.innerHTML = slideHtml(slide, theme, deck.meta.size);
+    scalePresentationSlide();
     elements.presentationNext.innerHTML = nextSlide
       ? slideHtml(nextSlide, theme, deck.meta.size)
-      : '<div class="presentation-end">End of deck</div>';
+      : `<div class="presentation-end">${escapeHtml(t("endOfDeck"))}</div>`;
     elements.presentationCount.textContent = `${state.activeSlide + 1} / ${deck.slides.length}`;
-    elements.presentationNotes.textContent = slide.notes || "No speaker notes.";
+    elements.presentationNotes.textContent = slide.notes || t("noSpeakerNotesSentence");
     updatePresentationTimer();
+  }
+
+  function scalePresentationSlide() {
+    const size = slideSizes[state.deck?.meta.size] || slideSizes.widescreen;
+    const slide = elements.presentationSlide.querySelector(".slide");
+    if (!slide) return;
+    const availableWidth = elements.presentationSlide.clientWidth;
+    const availableHeight = elements.presentationSlide.clientHeight;
+    const scale = Math.min(availableWidth / size.width, availableHeight / size.height);
+    slide.style.transform = `scale(${scale})`;
   }
 
   function startPresentationTimer() {
@@ -1756,9 +2078,11 @@ End with the takeaway.
   function importFile(file) {
     const reader = new FileReader();
     reader.onload = () => {
+      if (!confirmDiscardUnsavedCloudChanges()) return;
       state.project = createSingleFileProject();
+      clearCloudBinding();
       clearCurrentProjectStorage().catch((error) => {
-        state.storageWarning = `Could not clear stored project: ${error.message}`;
+        state.storageWarning = t("clearProjectFailed", { message: error.message });
       });
       setEditorValue(String(reader.result || ""));
     };
@@ -1766,84 +2090,37 @@ End with the takeaway.
   }
 
   async function importProjectPackage(file) {
+    if (!confirmDiscardUnsavedCloudChanges()) return;
     try {
-      const zip = await JSZip.loadAsync(file);
-      const entries = Object.values(zip.files).filter((entry) => !entry.dir);
-      const paths = entries.map((entry) => normalizePackageEntryPath(entry.name));
-      validateProjectPackagePaths(paths);
+      const projectPackage = await readProjectPackage(file);
+      const assetRecords = await Promise.all(projectPackage.assetBlobs.map((asset) => (
+        createAssetRecordFromBlob(asset.blob, asset.path, asset.metadata)
+      )));
 
-      const slidesEntry = zip.file("slides.md");
-      const manifestEntry = zip.file("config.json");
-      if (!slidesEntry) throw new Error("Package must include slides.md at the root.");
-      if (!manifestEntry) throw new Error("Package must include config.json at the root.");
-
-      const markdown = await slidesEntry.async("text");
-      const manifest = JSON.parse(await manifestEntry.async("text"));
-      validateProjectPackageManifest(manifest, paths);
-
-      const assetRecords = await Promise.all(
-        manifest.assets.map(async (assetMeta) => {
-          const assetEntry = zip.file(assetMeta.path);
-          if (!assetEntry) throw new Error(`Missing asset file: ${assetMeta.path}.`);
-          const blob = await assetEntry.async("blob");
-          return createAssetRecordFromBlob(blob, assetMeta.path, assetMeta);
-        })
-      );
-
-      state.project = createProjectFromMarkdown(markdown, assetRecords, manifest);
+      state.project = createProjectFromMarkdown(projectPackage.markdown, assetRecords, projectPackage.manifest);
+      clearCloudBinding();
       resetAssetPanelPaging();
-      setEditorValue(markdown);
-      elements.status.textContent = `Project package imported: ${assetRecords.length} asset${assetRecords.length === 1 ? "" : "s"} indexed.`;
+      setEditorValue(projectPackage.markdown);
+      elements.status.textContent = t("packageImported", {
+        count: assetRecords.length,
+        plural: assetRecords.length === 1 ? "" : "s",
+      });
       elements.status.classList.remove("warning");
     } catch (error) {
-      elements.status.textContent = `Project package import failed: ${error.message}`;
+      elements.status.textContent = t("packageImportFailed", { message: error.message });
       elements.status.classList.add("warning");
     }
   }
 
-  function normalizePackageEntryPath(path) {
-    return normalizeAssetPath(path).replace(/^\/+/, "");
-  }
+  async function importProjectPackageBlob(blob) {
+    const projectPackage = await readProjectPackage(blob);
+    const assetRecords = await Promise.all(projectPackage.assetBlobs.map((asset) => (
+      createAssetRecordFromBlob(asset.blob, asset.path, asset.metadata)
+    )));
 
-  function validateProjectPackagePaths(paths) {
-    const invalid = paths.find((path) => (
-      !path ||
-      path.startsWith("../") ||
-      path.includes("/../") ||
-      path === "." ||
-      path.includes("//") ||
-      (!["slides.md", "config.json"].includes(path) && !path.startsWith("assets/"))
-    ));
-    if (invalid) {
-      throw new Error(`Unsupported package entry: ${invalid}. Only slides.md, config.json, and assets/ files are allowed.`);
-    }
-  }
-
-  function validateProjectPackageManifest(manifest, packagePaths) {
-    if (!manifest || typeof manifest !== "object") throw new Error("config.json must be a project manifest object.");
-    if (manifest.schema !== "slip.project") throw new Error("config.json schema must be slip.project.");
-    const version = Number(manifest.version);
-    if (!Number.isInteger(version) || version < 1) throw new Error("config.json version must be a positive integer.");
-    if (version > 2) throw new Error(`Project version ${manifest.version} is newer than this Slip build supports.`);
-    if (manifest.entry !== "slides.md") throw new Error("config.json entry must be slides.md.");
-    if (!Array.isArray(manifest.assets)) throw new Error("config.json assets must be an array.");
-
-    const invalidAsset = manifest.assets.find((asset) => (
-      !asset ||
-      typeof asset.path !== "string" ||
-      !asset.path.startsWith("assets/") ||
-      asset.path.includes("../")
-    ));
-    if (invalidAsset) throw new Error("Every config.json asset path must stay inside assets/.");
-
-    const assetPaths = new Set(manifest.assets.map((asset) => asset.path));
-    if (assetPaths.size !== manifest.assets.length) throw new Error("config.json contains duplicate asset paths.");
-
-    const extraAsset = packagePaths.find((path) => path.startsWith("assets/") && !assetPaths.has(path));
-    if (extraAsset) throw new Error(`Asset file is not listed in config.json: ${extraAsset}.`);
-
-    const missingAsset = [...assetPaths].find((path) => !packagePaths.includes(path));
-    if (missingAsset) throw new Error(`config.json lists a missing asset file: ${missingAsset}.`);
+    state.project = createProjectFromMarkdown(projectPackage.markdown, assetRecords, projectPackage.manifest);
+    resetAssetPanelPaging();
+    setEditorValue(projectPackage.markdown);
   }
 
   async function createAssetRecord(file, path) {
@@ -1880,7 +2157,7 @@ End with the takeaway.
 
   async function importAssetFiles(fileList) {
     if (state.project.mode !== "project") {
-      elements.status.textContent = "Projectize or import a project before adding assets.";
+      elements.status.textContent = t("projectizeBeforeAssets");
       elements.status.classList.add("warning");
       return;
     }
@@ -1899,7 +2176,14 @@ End with the takeaway.
     render();
     scheduleProjectSave();
     const duplicateCount = records.filter((asset) => [...state.project.assets.values()].some((item) => item.path !== asset.path && item.hash === asset.hash)).length;
-    elements.status.textContent = `Added ${records.length} asset${records.length === 1 ? "" : "s"}${duplicateCount ? `; ${duplicateCount} duplicate${duplicateCount === 1 ? "" : "s"} flagged` : ""}.`;
+    elements.status.textContent = t("assetsAdded", {
+      count: records.length,
+      plural: records.length === 1 ? "" : "s",
+      duplicateText: duplicateCount ? t("duplicateFlagged", {
+        count: duplicateCount,
+        plural: duplicateCount === 1 ? "" : "s",
+      }) : "",
+    });
     elements.status.classList.toggle("warning", duplicateCount > 0);
   }
 
@@ -1950,7 +2234,7 @@ End with the takeaway.
   }
 
   function renameAsset(asset) {
-    const nextName = window.prompt("New asset filename", asset.filename);
+    const nextName = window.prompt(t("newAssetFilename"), asset.filename);
     if (!nextName) return;
     if (sanitizeFilename(nextName) === asset.filename) return;
     const nextPath = uniqueAssetPath(nextName);
@@ -1967,13 +2251,22 @@ End with the takeaway.
     });
     syncProjectFromDeck();
     updateMarkdownAfterAssetRename(oldPath, nextPath);
-    elements.status.textContent = `Renamed asset to ${nextPath}${usage ? ` and updated ${usage} reference${usage === 1 ? "" : "s"}` : ""}.`;
+    elements.status.textContent = t("renamedAsset", {
+      path: nextPath,
+      referenceText: usage ? t("updatedReferences", {
+        count: usage,
+        plural: usage === 1 ? "" : "s",
+      }) : "",
+    });
     elements.status.classList.remove("warning");
   }
 
   function removeAsset(asset) {
     const usage = countAssetUsage(state.markdown).get(asset.path) || 0;
-    if (usage > 0 && !window.confirm(`This asset is referenced ${usage} time${usage === 1 ? "" : "s"}. Remove it anyway?`)) {
+    if (usage > 0 && !window.confirm(t("removeReferencedAssetConfirm", {
+      count: usage,
+      plural: usage === 1 ? "" : "s",
+    }))) {
       return;
     }
     state.project.assets.delete(asset.path);
@@ -1981,8 +2274,8 @@ End with the takeaway.
     render();
     scheduleProjectSave();
     elements.status.textContent = usage
-      ? `Removed ${asset.filename}; ${usage} reference${usage === 1 ? "" : "s"} now unresolved.`
-      : `Removed ${asset.filename}.`;
+      ? t("removedReferencedAsset", { filename: asset.filename, count: usage, plural: usage === 1 ? "" : "s" })
+      : t("removedAsset", { filename: asset.filename });
     elements.status.classList.toggle("warning", usage > 0);
   }
 
@@ -2026,6 +2319,7 @@ End with the takeaway.
   function closeToolbarMenus() {
     setMenuOpen(elements.importMenuButton, elements.importMenuOptions, false);
     setMenuOpen(elements.exportMenuButton, elements.exportMenuOptions, false);
+    setMenuOpen(elements.cloudMenuButton, elements.cloudMenuOptions, false);
     setMenuOpen(elements.presentMenuButton, elements.presentMenuOptions, false);
   }
 
@@ -2054,7 +2348,7 @@ End with the takeaway.
     reader.onload = () => {
       insertAtCursor(`\n![${file.name}](${reader.result})\n`);
       if (file.size > 1_000_000) {
-        elements.status.textContent = "Large image embedded. Single-file decks work best below 1-2MB.";
+        elements.status.textContent = t("largeDroppedImage");
         elements.status.classList.add("warning");
       }
     };
@@ -2063,6 +2357,10 @@ End with the takeaway.
 
   elements.editor.addEventListener("drop", handleDrop);
   elements.editor.addEventListener("dragover", (event) => event.preventDefault());
+  elements.languagePicker.addEventListener("change", (event) => {
+    i18n.setLanguage(event.target.value);
+    applyLanguage();
+  });
   elements.newDeck.addEventListener("click", requestNewDeck);
   elements.newDeckConfirm.addEventListener("click", confirmNewDeck);
   elements.newDeckCancel.addEventListener("click", closeNewDeckDialog);
@@ -2120,6 +2418,51 @@ End with the takeaway.
   elements.exportMenuButton.addEventListener("click", () => {
     toggleToolbarMenu(elements.exportMenuButton, elements.exportMenuOptions);
   });
+  elements.cloudMenuButton.addEventListener("click", () => {
+    toggleToolbarMenu(elements.cloudMenuButton, elements.cloudMenuOptions);
+  });
+  elements.cloudOpen.addEventListener("click", openCloudPicker);
+  elements.cloudSave.addEventListener("click", saveCloudFile);
+  elements.cloudSaveAs.addEventListener("click", openCloudSaveDialog);
+  elements.cloudGoogle.addEventListener("click", () => {
+    startCloudAuth("google");
+  });
+  elements.cloudMicrosoft.addEventListener("click", () => {
+    startCloudAuth("microsoft");
+  });
+  elements.cloudDisconnect.addEventListener("click", disconnectCloudSession);
+  elements.cloudAuthClose.addEventListener("click", closeCloudAuthDialog);
+  elements.cloudAuthOk.addEventListener("click", closeCloudAuthDialog);
+  elements.cloudAuthDialog.addEventListener("click", (event) => {
+    if (event.target === elements.cloudAuthDialog) closeCloudAuthDialog();
+  });
+  elements.cloudOpenClose.addEventListener("click", closeCloudPicker);
+  elements.cloudOpenCancel.addEventListener("click", closeCloudPicker);
+  elements.cloudRefreshButton.addEventListener("click", refreshCloudFiles);
+  elements.cloudSearchButton.addEventListener("click", refreshCloudFiles);
+  elements.cloudSearch.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") refreshCloudFiles();
+  });
+  elements.cloudOpenDialog.addEventListener("click", (event) => {
+    if (event.target === elements.cloudOpenDialog) closeCloudPicker();
+    const fileButton = event.target.closest(".cloud-file-item");
+    if (fileButton) openCloudFile(fileButton.dataset.fileId);
+  });
+  elements.cloudSaveConfirm.addEventListener("click", confirmCloudSaveAs);
+  elements.cloudSaveCancel.addEventListener("click", closeCloudSaveDialog);
+  elements.cloudSaveName.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") confirmCloudSaveAs();
+  });
+  elements.cloudSaveDialog.addEventListener("click", (event) => {
+    if (event.target === elements.cloudSaveDialog) closeCloudSaveDialog();
+  });
+  elements.cloudConflictReload.addEventListener("click", reloadCloudConflictRemote);
+  elements.cloudConflictDuplicate.addEventListener("click", duplicateCloudConflictLocal);
+  elements.cloudConflictOverwrite.addEventListener("click", overwriteCloudConflictRemote);
+  elements.cloudConflictCancel.addEventListener("click", closeCloudConflictDialog);
+  elements.cloudConflictDialog.addEventListener("click", (event) => {
+    if (event.target === elements.cloudConflictDialog) closeCloudConflictDialog();
+  });
   elements.autoSplit.addEventListener("click", autoSplitMarkdown);
   elements.autoSplitAccept.addEventListener("click", acceptAutoSplit);
   elements.autoSplitCancel.addEventListener("click", closeAutoSplitDialog);
@@ -2159,6 +2502,7 @@ End with the takeaway.
     render();
   });
   elements.preview.addEventListener("scroll", () => {
+    if (Date.now() < state.ignorePreviewScrollUntil) return;
     const frames = [...elements.preview.querySelectorAll(".slide-frame")];
     const top = elements.preview.getBoundingClientRect().top;
     const closest = frames
@@ -2171,8 +2515,15 @@ End with the takeaway.
   });
   window.addEventListener("resize", () => {
     scaleSlides();
+    if (state.presentationOpen) scalePresentationSlide();
     requestAnimationFrame(detectSlideOverflow);
   });
+  window.addEventListener("beforeunload", (event) => {
+    if (!hasUnsavedCloudChanges()) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+  window.addEventListener("online", retryPendingCloudWrite);
   window.addEventListener("click", (event) => {
     if (!event.target.closest(".toolbar-menu")) closeToolbarMenus();
   });
@@ -2180,10 +2531,16 @@ End with the takeaway.
     if (event.key === "Escape" && !state.presentationOpen && !elements.newDeckDialog.hidden) closeNewDeckDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.projectizeDialog.hidden) closeProjectizeDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.embeddedExportDialog.hidden) closeEmbeddedExportDialog();
+    if (event.key === "Escape" && !state.presentationOpen && !elements.cloudAuthDialog.hidden) closeCloudAuthDialog();
+    if (event.key === "Escape" && !state.presentationOpen && !elements.cloudOpenDialog.hidden) closeCloudPicker();
+    if (event.key === "Escape" && !state.presentationOpen && !elements.cloudSaveDialog.hidden) closeCloudSaveDialog();
+    if (event.key === "Escape" && !state.presentationOpen && !elements.cloudConflictDialog.hidden) closeCloudConflictDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.autoSplitDialog.hidden) closeAutoSplitDialog();
     if (event.key === "Escape" && state.presentationOpen) closePresentation();
     if (event.key === "ArrowRight" || event.key === "PageDown") movePresentation(1);
     if (event.key === "ArrowLeft" || event.key === "PageUp") movePresentation(-1);
   });
 
+  applyLanguage();
+  initializeCloudAuth();
   initializeProjectStorage();

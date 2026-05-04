@@ -18,12 +18,19 @@ Open the local URL printed by Vite, usually `http://127.0.0.1:5173/`.
 - Write Markdown in the editor. Slides are split with `---`.
 - Use frontmatter for `title`, `theme`, and `size`.
 - Add speaker notes after `???`.
+- Use the language selector to switch the UI between English and Chinese.
 - Click `Import` and choose `File` for local Markdown files.
 - Click `Export` and choose `Markdown (plain)` to download the current deck as `.md`.
 - Click `Projectize`, then confirm, to convert the current deck into the V2 project model.
 - Click `Export` and choose `Markdown (embedded)` to inline project assets as data URLs in one `.md` file. Embedded Markdown export is refused when any image is over 350 KB or total images exceed 1.5 MB.
 - Click `Export` and choose `Project Package` to download a project-mode deck as a `.zip` containing `slides.md`, `config.json`, and `assets/`.
 - Click `Import` and choose `Package` to restore a structured Slip `.zip` project package.
+- Click `Cloud` to start Google Drive or OneDrive sign-in. Google uses Google Identity Services with the `drive.file` scope and requires `VITE_GOOGLE_CLIENT_ID`. OneDrive uses the OAuth callback flow with `Files.ReadWrite` and requires `VITE_MICROSOFT_CLIENT_ID`. Slip stores short-lived cloud sessions in browser `sessionStorage`; use `Cloud > Disconnect` to revoke Google access when possible, clear the active session, and remove local cloud cache for that provider. Expired sessions prompt re-auth.
+- Click `Cloud > Open From Cloud` after sign-in to browse supported Markdown decks and Slip project packages from the active provider. Opened cloud files are remembered in a local recent list.
+- Use `Cloud > Save` to write back to the currently opened or saved cloud file. Use `Cloud > Save As` to create a new cloud file and bind the deck to that location, similar to draw.io's location-based cloud workflow.
+- Cloud-bound decks show `*` beside the cloud file name when local edits are unsaved. Closing the tab or replacing the deck warns before those cloud edits are discarded.
+- If the cloud revision changes before save, Slip blocks the write and offers Reload Remote, Save Duplicate, or Overwrite.
+- If a cloud save fails because the network/provider is unavailable, Slip buffers the latest write locally, marks the file as pending, and retries when the browser comes back online.
 - Project decks are autosaved in browser storage and restored on refresh.
 - Use the `Assets` panel in project mode to add files, insert image references, sort by name/size/usage, rename assets with reference rewriting, and remove assets with reference warnings.
 - Large asset lists render lazily in batches with cached image thumbnails to keep the panel responsive.
@@ -40,12 +47,15 @@ npm run check
 npm run build
 npm run test:v1
 npm run test:v2
+npm run test:v3
 npm run release:check
 ```
 
-`npm run test:v1` runs Playwright browser regressions for print sizing, overflow warnings, presentation modes, Auto Split, and a 120-slide deck. `npm run release:check` runs syntax validation, the production build, and both V1 and V2 browser suites.
+`npm run test:v1` runs Playwright browser regressions for print sizing, overflow warnings, presentation modes, UI language switching, Auto Split, and a 120-slide deck. `npm run release:check` runs syntax validation, the production build, and the V1, V2, and V3 browser suites.
 
 `npm run test:v2` runs the V2 project-mode regressions for project import, migration, autosave restore, asset management, reference rewriting, package import/export, self-contained export, large-project performance, and missing-asset recovery.
+
+`npm run test:v3` runs V3 cloud-auth module checks for callback token exchange, minimal scopes, session expiry, token revocation, and disconnect cleanup, connector-contract checks for list/open/save/create semantics, Google Drive and OneDrive connector checks, plus browser regressions for provider selection, missing-client configuration warnings, session status, cloud open picker behavior, cloud save flows, dirty-state prompts, conflict resolution, offline retry behavior, and local cloud-cache cleanup.
 
 The last self-contained no-build baseline is preserved in git commit `044fa79`.
 
@@ -71,6 +81,18 @@ The last self-contained no-build baseline is preserved in git commit `044fa79`.
 - Rule-based heading auto-split with a review-and-accept dialog
 - Drag-and-drop image embedding as data URIs with large-file warnings
 
+## V3 Complete
+
+- Google Drive sign-in through Google Identity Services with `drive.file`
+- OneDrive sign-in through Microsoft OAuth with `Files.ReadWrite`
+- Provider-neutral cloud connector layer for list, open, save, and create
+- Cloud open picker with recent cloud file memory
+- Cloud Save and Save As for Markdown decks and project packages
+- Cloud dirty-state indicator and discard warnings
+- Revision-safe cloud conflict detection with reload, duplicate, and overwrite choices
+- Offline cloud-save buffering with retry on reconnect
+- Disconnect cleanup for sessions, pending cloud writes, recent provider cache, and Google token revocation when available
+
 ## Build
 
 ```bash
@@ -84,6 +106,21 @@ npm run preview
 ```
 
 The generated `dist/` directory is static-hosting ready. Vite is configured with relative asset paths, so the build can be served from a domain root or a subpath such as GitHub Pages.
+
+## Structure
+
+- `index.html`: app shell, toolbar, dialogs, and presentation markup
+- `app.js`: editor orchestration, rendering, project state, and UI event wiring
+- `src/deck.js`: sample decks, slide sizing, deck parsing, Markdown rendering, KaTeX math, code highlighting, HTML escaping, and slide CSS scoping
+- `src/i18n.js`: English and Chinese UI translation table and language helper
+- `src/projectPackage.js`: V2 `.zip` project package build/read/validation helpers
+- `src/cloudAuth.js`: V3 OAuth provider setup, PKCE authorization, callback exchange, and session helpers
+- `src/cloudConnectors.js`: V3 provider-neutral cloud file connector contract, shared errors, and memory test connector
+- `src/googleDriveConnector.js`: Google Drive connector for listing, opening, saving, and creating Markdown or project package files
+- `src/oneDriveConnector.js`: OneDrive connector for listing, opening, saving, and creating Markdown or project package files
+- `styles.css`: app layout, slide themes, print rules, dialogs, and presentation styles
+- `tests/`: Playwright browser regressions split by version scope
+- `plan/`: product plans and completed version plans
 
 ## Syntax
 

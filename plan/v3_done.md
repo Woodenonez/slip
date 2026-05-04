@@ -3,6 +3,8 @@
 Scope: cloud sync where users keep ownership of files in their cloud drives.
 Primary success signal: app can open and save decks directly in user cloud with clear conflict handling.
 
+Status: complete as of 2026-05-04. The implementation includes the required cloud auth, connector abstraction, open/save workflow, conflict handling, offline recovery, and cloud security/permission cleanup.
+
 ## Step 1. Auth Foundation (OAuth)
 Goal: provide secure account sign-in for cloud providers.
 
