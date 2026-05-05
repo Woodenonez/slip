@@ -554,6 +554,10 @@ button:disabled {
   color: var(--muted);
 }
 
+.dialog-summary.warning {
+  color: var(--danger);
+}
+
 .dialog-footer {
   justify-content: flex-end;
   border-top: 1px solid var(--panel-border);
@@ -604,7 +608,9 @@ button:disabled {
   font-size: 13px;
 }
 
-.dialog-field input {
+.dialog-field input,
+.dialog-field select,
+.dialog-field textarea {
   min-width: 0;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
@@ -612,6 +618,124 @@ button:disabled {
   background: #fff;
   color: var(--text);
   font: inherit;
+}
+
+.dialog-field textarea {
+  min-height: 120px;
+  resize: vertical;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.share-dialog {
+  width: min(680px, 100%);
+}
+
+.share-dialog .dialog-body {
+  display: grid;
+  gap: 12px;
+}
+
+#share-url {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.ai-tools-dialog {
+  width: min(980px, 100%);
+  max-height: min(820px, calc(100vh - 40px));
+}
+
+.ai-tools-body {
+  display: grid;
+  gap: 12px;
+}
+
+.ai-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ai-preferences-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ai-output-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px 34px;
+  gap: 6px;
+  align-items: center;
+}
+
+.ai-icon-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.ai-generate-button {
+  border-color: #15803d;
+  background: #16a34a;
+  color: #fff;
+}
+
+.ai-reset-button {
+  border-color: #b91c1c;
+  background: #dc2626;
+  color: #fff;
+}
+
+.ai-compare-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+#ai-custom-instruction {
+  min-height: 84px;
+}
+
+#ai-generated-prompt {
+  min-height: 260px;
+}
+
+#ai-result {
+  min-height: 180px;
+}
+
+#ai-current-preview,
+#ai-result-preview {
+  min-height: 150px;
+  background: #f8fafb;
+}
+
+.ai-result-review {
+  margin: 0;
+}
+
+.ai-result-review.warning {
+  color: var(--warning);
+}
+
+#ai-copy-prompt {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+#ai-apply-result:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.is-shared-readonly #editor .cm-editor {
+  background: #f8fafb;
 }
 
 .cloud-open-dialog {
@@ -1133,6 +1257,14 @@ button:disabled {
 
   .workspace {
     grid-template-columns: 180px minmax(320px, 1fr);
+  }
+
+  .ai-preferences-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ai-compare-grid {
+    grid-template-columns: 1fr;
   }
 
   .preview-pane {

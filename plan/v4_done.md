@@ -1,5 +1,7 @@
 # V4 Detailed Implementation Plan
 
+Status: complete as of 2026-05-04. The implementation follows `v4_split_done.md` as the detailed source of truth; native AI service work remains a future version because V4 shipped external AI prompt workflows without exposing AI API keys in the browser.
+
 Scope: temporary sharing and AI-assisted markdown normalization.
 Primary success signal: users can share decks quickly and convert arbitrary markdown into slide-ready structure.
 

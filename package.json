@@ -6,12 +6,14 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "check": "node --check app.js && node --check src/*.js",
-    "release:check": "npm run check && npm run build && npm run test:v1 && npm run test:v2 && npm run test:v3",
+    "share:server": "node server/shareServer.js",
+    "check": "node --check app.js && node --check src/*.js && node --check server/*.js",
+    "release:check": "npm run check && npm run build && npm run test:v1 && npm run test:v2 && npm run test:v3 && npm run test:v4",
     "test": "playwright test",
     "test:v1": "playwright test tests/v1-regression.spec.js",
     "test:v2": "playwright test tests/v2-project-model.spec.js",
-    "test:v3": "node --test tests/cloud-auth.test.js tests/cloud-connectors.test.js tests/google-drive-connector.test.js tests/one-drive-connector.test.js && playwright test tests/v3-cloud-auth.spec.js"
+    "test:v3": "node --test tests/cloud-auth.test.js tests/cloud-connectors.test.js tests/google-drive-connector.test.js tests/one-drive-connector.test.js && playwright test tests/v3-cloud-auth.spec.js",
+    "test:v4": "node --test tests/share-model.test.js tests/share-server.test.js tests/ai-prompts.test.js && playwright test tests/v4-share-ui.spec.js tests/v4-ai-tools.spec.js"
   },
   "keywords": [],
   "author": "",

@@ -86,6 +86,30 @@ Upcoming`, 2);
   await expect(page.locator("#presentation-notes")).toHaveText("Presenter notes");
 });
 
+test("outline navigation also moves the Markdown editor to the slide source", async ({ page }) => {
+  await openDeck(page, `${baseFrontmatter}
+
+# First
+
+Opening
+
+---
+
+## Target Slide
+
+The editor should jump here.
+
+---
+
+## Final
+
+Closing`, 3);
+
+  await page.locator(".outline-item").nth(1).click();
+  await expect(page.locator("#frame-1")).toBeInViewport();
+  await expect(page.locator(".cm-activeLine")).toContainText("Target Slide");
+});
+
 test("keeps preview and presentation slide layout consistent", async ({ page }) => {
   await openDeck(page, `${baseFrontmatter}
 
@@ -146,10 +170,11 @@ Menu actions should be grouped.`, 1);
   await expect(page.locator(".toolbar-divider")).toHaveCount(3);
   await expect(page.locator(".toolbar-actions > *").first()).toHaveAttribute("id", "new-deck");
   await expect(page.locator(".toolbar-actions > *").nth(1)).toContainText("Cloud");
-  await expect(page.locator(".toolbar-actions > *").nth(2)).toHaveText("|");
-  await expect(page.locator(".toolbar-actions > *").nth(3)).toContainText("Import");
-  await expect(page.locator(".toolbar-actions > *").nth(4)).toContainText("Export");
-  await expect(page.locator(".toolbar-actions > *").nth(5)).toHaveText("|");
+  await expect(page.locator(".toolbar-actions > *").nth(2)).toHaveText("Share");
+  await expect(page.locator(".toolbar-actions > *").nth(3)).toHaveText("|");
+  await expect(page.locator(".toolbar-actions > *").nth(4)).toContainText("Import");
+  await expect(page.locator(".toolbar-actions > *").nth(5)).toContainText("Export");
+  await expect(page.locator(".toolbar-actions > *").nth(6)).toHaveText("|");
 
   await page.locator("#import-menu-button").click();
   await expect(page.locator("#import-menu-options")).toBeVisible();
@@ -159,9 +184,9 @@ Menu actions should be grouped.`, 1);
   await page.locator("#export-menu-button").click();
   await expect(page.locator("#import-menu-options")).toBeHidden();
   await expect(page.locator("#export-menu-options")).toBeVisible();
-  await expect(page.locator("#export-menu-options")).toContainText("Markdown (plain)");
-  await expect(page.locator("#export-menu-options")).toContainText("Markdown (embedded)");
-  await expect(page.locator("#export-menu-options")).toContainText("Project Package");
+  await expect(page.locator("#export-menu-options")).toContainText("Plain (md)");
+  await expect(page.locator("#export-menu-options")).toContainText("Embedded (md)");
+  await expect(page.locator("#export-menu-options")).toContainText("Package");
   await expect(page.locator("#export-menu-options")).toContainText("PDF");
 });
 

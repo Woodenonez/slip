@@ -362,3 +362,107 @@ V3 started on 2026-05-01 and is now marked complete in `plan/v3_done.md`.
 - Updated README with the completed V3 cloud-sync scope.
 - Updated AGENTS so future work treats V1, V2, and V3 as complete and does not begin V4 without confirmation.
 - No new runtime or development dependencies were introduced.
+
+# V4 Development
+
+V4 started on 2026-05-04 and is now marked complete in `plan/v4_done.md` and `plan/v4_split_done.md`. Work primarily followed the split plan, with the base V4 plan used as the high-level reference.
+
+## 2026-05-04 (1)
+
+- Started V4a Step 1: share data model and TTL rules.
+- Added `src/shareModel.js` with the `slip.share` schema, schema version, `single-md` payload support, future `project-zip` payload marker, owner token field, and share object validation.
+- Defined TTL options for 6 hours, 24 hours, and 7 days, with 6 hours as the default and 7 days as the maximum.
+- Added cleanup strategy metadata for scheduled backend cleanup, serverless scheduled cleanup, and lazy cleanup during create/read requests.
+- Added expired-share helpers so the future API layer can enforce TTL and cleanup behavior consistently.
+- Added `tests/share-model.test.js` and `npm run test:v4` for the V4a model contract.
+- Updated README and AGENTS with the V4 sharing model module and test command.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-04 (2)
+
+- Continued V4a with Step 2: temporary share link API.
+- Added `server/shareServer.js`, a small Node HTTP server that serves `dist/` and implements `POST /api/share`, `GET /api/share/:id`, and `DELETE /api/share/:id`.
+- Added `server/shareStore.js` with filesystem-backed share storage under `.slip-shares/`.
+- Added API enforcement for the 2 MB Markdown payload limit, in-memory per-IP rate limits, TTL expiration on read, owner-token revocation, and basic payload sanitization for script tags, `javascript:` links, and CSS imports.
+- Added `npm run share:server` to run the local share API after `npm run build`.
+- Expanded `npm run test:v4` with API tests for create, read, revoke, expired shares, unsafe payloads, and oversized payloads.
+- Updated README and AGENTS with the V4 share server and API testing expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-04 (3)
+
+- Continued V4a with Step 3: share UI flow.
+- Added a `Share` toolbar action and share dialog with TTL selection, create link, copy link, and revoke link controls.
+- Wired the Share UI to the local share API and kept project-asset package sharing blocked for now, matching the single-Markdown-first V4a scope.
+- Added `/share/:id` route loading for read-only shared decks.
+- Disabled editing and mutating controls in shared read-only mode.
+- Added `Copy to My Editor` so recipients can make an editable local copy without changing the original share.
+- Localized share UI text in English and Chinese.
+- Expanded V4 browser tests for Share UI create/copy/revoke behavior, read-only shared routes, and copy-to-editor behavior.
+- Fixed shared deck route asset loading so production links opened at `/share/:id` can load the Vite-built JavaScript, CSS, and font assets from `/share/assets/*`.
+- Added a clear unavailable deck screen for revoked, expired, or missing share links instead of leaving the shared tab blank or ambiguous.
+- Expanded V4 tests for shared-route asset loading and missing-link display.
+- Split the production bundle into editor, renderer, archive, and app chunks through Vite/Rolldown config so builds no longer emit the oversized JavaScript chunk warning.
+- Updated README and AGENTS with the share UI workflow and testing expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-04 (4)
+
+- Started V4b External AI Prompt Mode with Step E1: prompt panel foundation.
+- Added `src/aiPrompts.js` with prompt modes for File to Slip Markdown, Refine Slip Markdown, and Slip to Report.
+- Added input-source handling for current Slip Markdown, selected editor text, user-pasted external content, and template-only prompts.
+- Added an `AI Tools` toolbar action and dialog for generating and copying external AI prompts.
+- Kept the workflow local-only; Slip copies prompts to the clipboard and does not send deck content to any AI service.
+- Localized the AI Tools UI in English and Chinese.
+- Added V4 prompt builder tests and browser coverage for prompt generation, pasted-source switching, and clipboard copy.
+- Updated README and AGENTS with the external AI prompt workflow and testing expectations.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-04 (5)
+
+- Polished the V4b external AI prompt templates so they use a stricter task, output contract, rules, and delimited input format.
+- Tightened File to Slip Markdown, Refine Slip Markdown, and Slip to Report prompts to request only the target artifact and avoid explanations, acknowledgements, code-fence wrappers, or unsupported facts.
+- Updated V4 AI prompt tests and browser prompt-generation checks for the stricter prompt format.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-04 (6)
+
+- Continued V4b with Step E5: review and apply workflow for external AI output.
+- Added an AI result paste area, review summary, and Apply Result action to the AI Tools dialog.
+- Added local validation that blocks empty output and chatty AI prefixes, unwraps a single outer Markdown code fence, and warns about missing slide separators, unsupported directives, unsafe markup, and report outputs that still contain slide syntax.
+- Applying AI output now replaces the editor content only after validation, clears cloud binding because the result becomes a local deck, and exits shared read-only mode by making a local editable copy.
+- Updated English and Chinese UI strings, README, AGENTS, V4 prompt tests, and V4 browser tests for the review/apply flow.
+- Revised the external AI output contract to request one complete Markdown code block for easier copying from AI chat tools, and changed Slip to unwrap a single outer Markdown fence automatically before validation/apply.
+- Made prompt boundaries explicit: AI tools must treat only content between `<<<` and `>>>` as reference input and return the complete final content, not a summary, excerpt, patch, or diff.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-04 (7)
+
+- Continued V4b with Step E6: prompt presets and customization.
+- Added local AI prompt preferences for audience, detail level, slide density, output language, and custom instructions.
+- Persisted AI prompt preferences in `localStorage` and added Reset Preferences to restore defaults.
+- Injected normalized prompt preferences into File to Slip Markdown, Refine Slip Markdown, and Slip to Report prompts.
+- Completed the remaining V4b review/apply cleanup by adding current/result comparison text areas and a one-click Undo AI Apply checkpoint.
+- Updated English and Chinese UI strings, README, AGENTS, V4 prompt tests, and V4 browser tests for preferences, comparison, apply, and undo.
+- Reviewed V4 against the split plan, marked V4 complete, and renamed the V4 plan files to `plan/v4_done.md` and `plan/v4_split_done.md`.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-05 (1)
+
+- Adjusted the AI Tools prompt flow after V4 completion.
+- Removed the `Selected text only` input source because users can paste selected content through the external content source.
+- Added an explicit Generate button; generated prompts now remain empty until the user clicks Generate after setting mode, input source, audience, detail, density, output language, and custom requirements.
+- Changed prompt controls so editing requirements clears the generated prompt instead of silently updating it.
+- Moved Generate and Reset into the output-language preference row as compact icon buttons with hover titles to save dialog space.
+- Changed File to Slip Markdown to target pasted text or PDF-extracted content only; it no longer includes the current editor deck and now emphasizes short slide pages with long sections split across multiple pages.
+- Changed File to Slip Markdown to assume the TXT/PDF is attached in the external AI tool; its input source and external content box are disabled and the generated prompt uses an attachment placeholder.
+- Added explicit math notation guidance to AI prompts: block equations should use `$$block equation$$` and inline equations should use `$inline equation$`.
+- Updated outline navigation so clicking a slide title scrolls both the preview and the Markdown editor to the selected slide source.
+- Updated README, the completed V4 split plan notes, V4 prompt tests, and V4 browser tests.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-05 (2)
+
+- Marked the current project state as alpha test version ready.
+- Prepared the current V1 through V4 complete state for the `draft-version` branch.
+- No new runtime or development dependencies were introduced.

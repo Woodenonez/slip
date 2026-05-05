@@ -1,4 +1,4 @@
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import {
   EditorView,
   crosshairCursor,
@@ -46,6 +46,13 @@ import {
   startCloudAuth as beginCloudAuth,
   startGoogleTokenAuth,
 } from "./src/cloudAuth.js";
+import {
+  aiPromptPreferenceDefaults,
+  buildAiPrompt,
+  normalizeAiPromptPreferences,
+  normalizeAiResultContent,
+  validateAiResult,
+} from "./src/aiPrompts.js";
 import { CloudConnectorError, cloudConnectorErrorCodes } from "./src/cloudConnectors.js";
 import {
   createDeckParser,
@@ -76,6 +83,9 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
   };
   const cloudRecentFilesKey = "slip.cloudRecentFiles";
   const cloudPendingWriteKey = "slip.cloudPendingWrite";
+  const shareStateKey = "slip.shareState";
+  const aiPromptPreferencesKey = "slip.aiPromptPreferences";
+  const sharedRouteId = readSharedRouteId();
 
   const initialProjectDocument = readLocalProjectSnapshot();
   const parseDeck = createDeckParser();
@@ -116,6 +126,14 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     cloudRecentFiles: readRecentCloudFiles(),
     cloudLoading: false,
     cloudOpenError: "",
+    share: readShareState(),
+    shareLoading: false,
+    sharedRouteId,
+    sharedReadOnly: Boolean(sharedRouteId),
+    aiPromptMode: "file-to-slip",
+    aiPromptSource: "current",
+    aiPromptPreferences: readAiPromptPreferences(),
+    aiUndoMarkdown: "",
   };
 
   function createSingleFileProject() {
@@ -224,6 +242,7 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     deckTitle: document.getElementById("deck-title"),
     projectMode: document.getElementById("project-mode"),
     newDeck: document.getElementById("new-deck"),
+    shareDeck: document.getElementById("share-deck"),
     languagePicker: document.getElementById("language-picker"),
     newDeckDialog: document.getElementById("new-deck-dialog"),
     newDeckMessage: document.getElementById("new-deck-message"),
@@ -282,6 +301,36 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     cloudConflictDuplicate: document.getElementById("cloud-conflict-duplicate"),
     cloudConflictOverwrite: document.getElementById("cloud-conflict-overwrite"),
     cloudConflictCancel: document.getElementById("cloud-conflict-cancel"),
+    shareDialog: document.getElementById("share-dialog"),
+    shareClose: document.getElementById("share-close"),
+    shareSummary: document.getElementById("share-summary"),
+    shareTtl: document.getElementById("share-ttl"),
+    shareUrl: document.getElementById("share-url"),
+    shareCreate: document.getElementById("share-create"),
+    shareCopy: document.getElementById("share-copy"),
+    shareRevoke: document.getElementById("share-revoke"),
+    shareCopyToEditor: document.getElementById("share-copy-to-editor"),
+    aiTools: document.getElementById("ai-tools"),
+    aiToolsDialog: document.getElementById("ai-tools-dialog"),
+    aiToolsClose: document.getElementById("ai-tools-close"),
+    aiPromptMode: document.getElementById("ai-prompt-mode"),
+    aiPromptSource: document.getElementById("ai-prompt-source"),
+    aiAudience: document.getElementById("ai-audience"),
+    aiDetail: document.getElementById("ai-detail"),
+    aiSlideDensity: document.getElementById("ai-slide-density"),
+    aiOutputLanguage: document.getElementById("ai-output-language"),
+    aiCustomInstruction: document.getElementById("ai-custom-instruction"),
+    aiResetPreferences: document.getElementById("ai-reset-preferences"),
+    aiExternalContent: document.getElementById("ai-external-content"),
+    aiGeneratedPrompt: document.getElementById("ai-generated-prompt"),
+    aiGeneratePrompt: document.getElementById("ai-generate-prompt"),
+    aiCopyPrompt: document.getElementById("ai-copy-prompt"),
+    aiResult: document.getElementById("ai-result"),
+    aiResultReview: document.getElementById("ai-result-review"),
+    aiCurrentPreview: document.getElementById("ai-current-preview"),
+    aiResultPreview: document.getElementById("ai-result-preview"),
+    aiApplyResult: document.getElementById("ai-apply-result"),
+    aiUndoApply: document.getElementById("ai-undo-apply"),
     autoSplit: document.getElementById("auto-split"),
     customCssToggle: document.getElementById("custom-css-toggle"),
     customCssPanel: document.getElementById("custom-css-panel"),
@@ -312,6 +361,7 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
   };
 
   let updateTimer = 0;
+  const editorEditable = new Compartment();
   const editorView = new EditorView({
     parent: elements.editor,
     state: EditorState.create({
@@ -335,6 +385,7 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
         highlightActiveLine(),
         highlightSelectionMatches(),
         markdown(),
+        editorEditable.of(EditorView.editable.of(!state.sharedReadOnly)),
         keymap.of([
           indentWithTab,
           ...closeBracketsKeymap,
@@ -374,6 +425,12 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     if (state.deck) render();
     updateCloudSessionStatus();
     renderCloudOpenDialog();
+    renderShareDialog();
+    renderAiPromptControls();
+    if (elements.aiToolsDialog && !elements.aiToolsDialog.hidden && !elements.aiGeneratedPrompt.value) {
+      clearAiGeneratedPrompt();
+    }
+    renderAiResultReview();
   }
 
   async function initializeCloudAuth() {
@@ -503,9 +560,11 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     const started = performance.now();
     state.markdown = getEditorValue();
     state.deck = parseDeck(state.markdown);
-    syncProjectFromDeck();
-    localStorage.setItem("slip.markdown", state.markdown);
-    scheduleProjectSave();
+    if (!state.sharedReadOnly) {
+      syncProjectFromDeck();
+      localStorage.setItem("slip.markdown", state.markdown);
+      scheduleProjectSave();
+    }
     render();
     const elapsed = Math.round(performance.now() - started);
     const warnings = collectWarnings(state.deck);
@@ -553,6 +612,7 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     renderPreview(deck);
     renderAssetPanel();
     updateCloudSessionStatus();
+    updateSharedReadOnlyUi();
     if (state.presentationOpen) renderPresentation();
   }
 
@@ -892,7 +952,64 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     state.activeSlide = index;
     state.ignorePreviewScrollUntil = Date.now() + 300;
     document.getElementById(`frame-${index}`)?.scrollIntoView({ behavior: "auto", block: "start" });
+    scrollEditorToSlide(index);
     renderOutline(state.deck);
+  }
+
+  function scrollEditorToSlide(index) {
+    const ranges = markdownSlideRanges(getEditorValue());
+    const range = ranges[index];
+    if (!range) return;
+    editorView.dispatch({
+      selection: { anchor: range.start },
+      effects: EditorView.scrollIntoView(range.start, { y: "start" }),
+    });
+    editorView.focus();
+  }
+
+  function markdownSlideRanges(markdown) {
+    let bodyStart = markdownBodyStart(markdown);
+    const body = markdown.slice(bodyStart);
+    const styleMatch = body.match(/^\s*<style>([\s\S]*?)<\/style>\s*/i);
+    if (styleMatch) bodyStart += styleMatch[0].length;
+
+    const segments = [];
+    const lines = markdown.slice(bodyStart).split("\n");
+    let currentStart = bodyStart;
+    let position = bodyStart;
+    let inFence = false;
+
+    lines.forEach((line, index) => {
+      const lineStart = position;
+      const hasNewline = index < lines.length - 1;
+      const nextPosition = position + line.length + (hasNewline ? 1 : 0);
+      if (/^\s*```/.test(line)) inFence = !inFence;
+      if (!inFence && /^---\s*$/.test(line)) {
+        segments.push({ start: currentStart, end: lineStart });
+        currentStart = nextPosition;
+      }
+      position = nextPosition;
+    });
+    segments.push({ start: currentStart, end: markdown.length });
+
+    return segments
+      .map((segment) => {
+        const source = markdown.slice(segment.start, segment.end);
+        const firstContent = source.search(/\S/);
+        return {
+          start: firstContent >= 0 ? segment.start + firstContent : segment.start,
+          source,
+        };
+      })
+      .filter((segment, index, all) => segment.source.trim() || all.length === 1 || index < all.length - 1);
+  }
+
+  function markdownBodyStart(markdown) {
+    if (!markdown.startsWith("---\n")) return 0;
+    const end = markdown.indexOf("\n---", 4);
+    if (end === -1) return 0;
+    const afterClosingFence = end + 4;
+    return markdown[afterClosingFence] === "\n" ? afterClosingFence + 1 : afterClosingFence;
   }
 
   function exportMarkdown() {
@@ -1493,6 +1610,398 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     state.cloudFiles = [];
     elements.status.textContent = t("cloudDisconnected");
     elements.status.classList.remove("warning");
+  }
+
+  function readSharedRouteId() {
+    const match = window.location.pathname.match(/^\/share\/([^/]+)\/?$/);
+    return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  function readShareState() {
+    try {
+      const share = JSON.parse(localStorage.getItem(shareStateKey) || "null");
+      if (!share?.id || !share.url || !share.ownerToken) return null;
+      return share;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function saveShareState(share) {
+    state.share = share;
+    if (share) {
+      localStorage.setItem(shareStateKey, JSON.stringify(share));
+    } else {
+      localStorage.removeItem(shareStateKey);
+    }
+    renderShareDialog();
+  }
+
+  function readAiPromptPreferences() {
+    try {
+      return normalizeAiPromptPreferences(JSON.parse(localStorage.getItem(aiPromptPreferencesKey) || "null") || {});
+    } catch (_error) {
+      return normalizeAiPromptPreferences();
+    }
+  }
+
+  function saveAiPromptPreferences(preferences) {
+    state.aiPromptPreferences = normalizeAiPromptPreferences(preferences);
+    localStorage.setItem(aiPromptPreferencesKey, JSON.stringify(state.aiPromptPreferences));
+  }
+
+  function openShareDialog() {
+    closeToolbarMenus();
+    elements.shareDialog.hidden = false;
+    renderShareDialog();
+  }
+
+  function closeShareDialog() {
+    elements.shareDialog.hidden = true;
+  }
+
+  function renderShareDialog() {
+    if (!elements.shareDialog || elements.shareDialog.hidden) return;
+    elements.shareCreate.disabled = state.shareLoading || state.sharedReadOnly;
+    elements.shareCopy.disabled = state.shareLoading || !state.share?.url;
+    elements.shareRevoke.disabled = state.shareLoading || !state.share?.id || !state.share?.ownerToken;
+    elements.shareCopyToEditor.hidden = !state.sharedReadOnly;
+    elements.shareUrl.value = state.share?.url || "";
+    if (state.sharedReadOnly) {
+      elements.shareSummary.textContent = t("shareReadOnlySummary");
+    } else if (state.share?.url) {
+      elements.shareSummary.textContent = t("shareCreatedSummary", {
+        expiresAt: formatShareExpiration(state.share.expiresAt),
+      });
+    } else {
+      elements.shareSummary.textContent = t("shareSummary");
+    }
+    elements.shareSummary.classList.remove("warning");
+  }
+
+  async function createShareLink() {
+    if (state.sharedReadOnly) return;
+    flushEditorUpdate();
+    if (state.project.mode === "project" && state.project.assets.size) {
+      setShareDialogWarning(t("shareProjectUnsupported"));
+      return;
+    }
+    state.shareLoading = true;
+    renderShareDialog();
+    try {
+      const response = await fetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ttlId: elements.shareTtl.value,
+          markdown: getEditorValue(),
+          meta: {
+            title: state.deck.meta.title,
+            theme: state.deck.meta.theme,
+            size: state.deck.meta.size,
+          },
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || response.statusText);
+      saveShareState(payload);
+      elements.status.textContent = t("shareCreatedStatus");
+      elements.status.classList.remove("warning");
+    } catch (error) {
+      setShareDialogWarning(t("shareCreateFailed", { message: error.message }));
+    } finally {
+      state.shareLoading = false;
+      renderShareDialog();
+    }
+  }
+
+  async function copyShareLink() {
+    if (!state.share?.url) return;
+    await navigator.clipboard.writeText(state.share.url);
+    elements.status.textContent = t("shareCopiedStatus");
+    elements.status.classList.remove("warning");
+  }
+
+  async function revokeShareLink() {
+    if (!state.share?.id || !state.share?.ownerToken) return;
+    state.shareLoading = true;
+    renderShareDialog();
+    try {
+      const response = await fetch(`/api/share/${encodeURIComponent(state.share.id)}`, {
+        method: "DELETE",
+        headers: { "x-owner-token": state.share.ownerToken },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || response.statusText);
+      saveShareState(null);
+      elements.status.textContent = t("shareRevokedStatus");
+      elements.status.classList.remove("warning");
+    } catch (error) {
+      setShareDialogWarning(t("shareRevokeFailed", { message: error.message }));
+    } finally {
+      state.shareLoading = false;
+      renderShareDialog();
+    }
+  }
+
+  async function initializeSharedRoute() {
+    if (!state.sharedRouteId) return;
+    setSharedReadOnly(true);
+    try {
+      const response = await fetch(`/api/share/${encodeURIComponent(state.sharedRouteId)}`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || response.statusText);
+      state.project = createSingleFileProject();
+      setEditorValueWithoutUpdate(payload.payload?.markdown || "");
+      update();
+      elements.status.textContent = t("shareOpenedReadOnly", {
+        expiresAt: formatShareExpiration(payload.expiresAt),
+      });
+      elements.status.classList.remove("warning");
+    } catch (error) {
+      setEditorValueWithoutUpdate(sharedRouteErrorMarkdown(error.message));
+      update();
+      elements.status.textContent = t("shareOpenFailed", { message: error.message });
+      elements.status.classList.add("warning");
+    }
+  }
+
+  function sharedRouteErrorMarkdown(message) {
+    const title = t("sharedDeckUnavailableTitle");
+    return `---
+title: ${title}
+theme: clean
+size: widescreen
+---
+
+# ${title}
+
+${message}
+`;
+  }
+
+  function copySharedDeckToEditor() {
+    if (!state.sharedReadOnly) return;
+    const markdown = getEditorValue();
+    state.sharedRouteId = "";
+    setSharedReadOnly(false);
+    state.project = createSingleFileProject();
+    clearCloudBinding();
+    setEditorValue(markdown);
+    window.history.replaceState({}, document.title, "/");
+    closeShareDialog();
+    elements.status.textContent = t("shareCopiedToEditorStatus");
+    elements.status.classList.remove("warning");
+  }
+
+  function openAiToolsDialog() {
+    closeToolbarMenus();
+    elements.aiToolsDialog.hidden = false;
+    renderAiPreferences();
+    renderAiPromptControls();
+    clearAiGeneratedPrompt();
+    renderAiResultReview();
+  }
+
+  function closeAiToolsDialog() {
+    elements.aiToolsDialog.hidden = true;
+  }
+
+  function getAiPromptContent() {
+    if (state.aiPromptMode === "file-to-slip") return "";
+    if (state.aiPromptSource === "pasted") return elements.aiExternalContent.value;
+    if (state.aiPromptSource === "template") return "";
+    return getEditorValue();
+  }
+
+  function renderAiPromptControls() {
+    if (!elements.aiToolsDialog || elements.aiToolsDialog.hidden) return;
+    if (![...elements.aiPromptSource.options].some((option) => option.value === state.aiPromptSource)) {
+      state.aiPromptSource = "current";
+    }
+    const currentSourceOption = elements.aiPromptSource.querySelector('option[value="current"]');
+    if (currentSourceOption) {
+      currentSourceOption.hidden = state.aiPromptMode === "file-to-slip";
+      currentSourceOption.disabled = state.aiPromptMode === "file-to-slip";
+    }
+    if (state.aiPromptMode === "file-to-slip") {
+      state.aiPromptSource = "template";
+    }
+    elements.aiPromptMode.value = state.aiPromptMode;
+    elements.aiPromptSource.value = state.aiPromptSource;
+    elements.aiPromptSource.disabled = state.aiPromptMode === "file-to-slip";
+    elements.aiExternalContent.disabled = state.aiPromptMode === "file-to-slip" || state.aiPromptSource !== "pasted";
+    elements.aiExternalContent.placeholder = t(
+      state.aiPromptMode === "file-to-slip"
+        ? "externalContentFileToSlipDisabled"
+        : state.aiPromptSource === "pasted" ? "externalContentPlaceholder" : "externalContentDisabled",
+    );
+  }
+
+  function generateAiPrompt() {
+    renderAiPromptControls();
+    elements.aiGeneratedPrompt.value = buildAiPrompt({
+      mode: state.aiPromptMode,
+      source: state.aiPromptSource,
+      content: getAiPromptContent(),
+      preferences: state.aiPromptPreferences,
+    });
+    elements.status.textContent = t("aiPromptGenerated");
+    elements.status.classList.remove("warning");
+  }
+
+  function clearAiGeneratedPrompt() {
+    elements.aiGeneratedPrompt.value = "";
+    elements.aiGeneratedPrompt.placeholder = t("generatedPromptPlaceholder");
+  }
+
+  function markAiPromptStale() {
+    if (!elements.aiToolsDialog || elements.aiToolsDialog.hidden) return;
+    clearAiGeneratedPrompt();
+    renderAiResultReview();
+  }
+
+  function renderAiPreferences() {
+    elements.aiAudience.value = state.aiPromptPreferences.audience;
+    elements.aiDetail.value = state.aiPromptPreferences.detail;
+    elements.aiSlideDensity.value = state.aiPromptPreferences.slideDensity;
+    elements.aiOutputLanguage.value = state.aiPromptPreferences.outputLanguage;
+    elements.aiCustomInstruction.value = state.aiPromptPreferences.customInstruction;
+  }
+
+  function updateAiPreferences() {
+    saveAiPromptPreferences({
+      audience: elements.aiAudience.value,
+      detail: elements.aiDetail.value,
+      slideDensity: elements.aiSlideDensity.value,
+      outputLanguage: elements.aiOutputLanguage.value,
+      customInstruction: elements.aiCustomInstruction.value,
+    });
+    markAiPromptStale();
+  }
+
+  function resetAiPreferences() {
+    saveAiPromptPreferences(aiPromptPreferenceDefaults);
+    renderAiPreferences();
+    markAiPromptStale();
+    elements.status.textContent = t("aiPreferencesReset");
+    elements.status.classList.remove("warning");
+  }
+
+  async function copyAiPrompt() {
+    if (!elements.aiGeneratedPrompt.value.trim()) {
+      elements.status.textContent = t("generatePromptFirst");
+      elements.status.classList.add("warning");
+      return;
+    }
+    await navigator.clipboard.writeText(elements.aiGeneratedPrompt.value);
+    elements.status.textContent = t("aiPromptCopied");
+    elements.status.classList.remove("warning");
+  }
+
+  function renderAiResultReview() {
+    if (!elements.aiToolsDialog || elements.aiToolsDialog.hidden) return;
+    const normalizedResult = normalizeAiResultContent(elements.aiResult.value);
+    const validation = validateAiResult({
+      mode: state.aiPromptMode,
+      content: normalizedResult,
+    });
+    const messages = [
+      ...validation.errors.map((code) => t(aiResultErrorKey(code))),
+      ...validation.warnings.map((code) => t(aiResultWarningKey(code))),
+    ];
+    elements.aiApplyResult.disabled = !validation.valid;
+    elements.aiUndoApply.disabled = !state.aiUndoMarkdown;
+    elements.aiCurrentPreview.value = getEditorValue();
+    elements.aiResultPreview.value = normalizedResult;
+    elements.aiResultReview.textContent = messages.length
+      ? messages.join(" ")
+      : t("aiResultReady");
+    elements.aiResultReview.classList.toggle("warning", messages.length > 0);
+  }
+
+  function aiResultErrorKey(code) {
+    if (code === "chatty-prefix") return "aiResultChatty";
+    return "aiResultEmpty";
+  }
+
+  function aiResultWarningKey(code) {
+    if (code === "missing-slide-separators") return "aiResultMissingSeparators";
+    if (code === "unsupported-directive") return "aiResultUnsupportedDirective";
+    if (code === "unsafe-markup") return "aiResultUnsafeMarkup";
+    if (code === "report-has-slide-separators") return "aiResultReportSeparators";
+    if (code === "report-has-speaker-notes") return "aiResultReportNotes";
+    return "aiResultReviewWarning";
+  }
+
+  function applyAiResult() {
+    const result = normalizeAiResultContent(elements.aiResult.value);
+    const validation = validateAiResult({
+      mode: state.aiPromptMode,
+      content: result,
+    });
+    renderAiResultReview();
+    if (!validation.valid) {
+      elements.status.textContent = t("aiResultApplyBlocked");
+      elements.status.classList.add("warning");
+      return;
+    }
+    if (state.sharedReadOnly) {
+      state.sharedRouteId = "";
+      setSharedReadOnly(false);
+      window.history.replaceState({}, document.title, "/");
+    }
+    state.aiUndoMarkdown = getEditorValue();
+    state.project = createSingleFileProject();
+    clearCloudBinding();
+    setEditorValue(result);
+    elements.status.textContent = t("aiResultApplied");
+    elements.status.classList.toggle("warning", validation.warnings.length > 0);
+    closeAiToolsDialog();
+  }
+
+  function undoAiApply() {
+    if (!state.aiUndoMarkdown) return;
+    const previous = state.aiUndoMarkdown;
+    state.aiUndoMarkdown = "";
+    state.project = createSingleFileProject();
+    clearCloudBinding();
+    setEditorValue(previous);
+    elements.status.textContent = t("aiApplyUndone");
+    elements.status.classList.remove("warning");
+    renderAiResultReview();
+  }
+
+  function setSharedReadOnly(readOnly) {
+    state.sharedReadOnly = readOnly;
+    editorView.dispatch({
+      effects: editorEditable.reconfigure(EditorView.editable.of(!readOnly)),
+    });
+    updateSharedReadOnlyUi();
+  }
+
+  function updateSharedReadOnlyUi() {
+    elements.app.classList.toggle("is-shared-readonly", state.sharedReadOnly);
+    elements.importMenuButton.disabled = state.sharedReadOnly;
+    elements.importFile.disabled = state.sharedReadOnly;
+    elements.importPackage.disabled = state.sharedReadOnly;
+    elements.projectize.disabled = state.sharedReadOnly || state.project.mode === "project";
+    elements.autoSplit.disabled = state.sharedReadOnly;
+    elements.customCssToggle.disabled = state.sharedReadOnly;
+    elements.cloudMenuButton.disabled = state.sharedReadOnly;
+    elements.themePicker.disabled = state.sharedReadOnly;
+    elements.sizePicker.disabled = state.sharedReadOnly;
+  }
+
+  function setShareDialogWarning(message) {
+    elements.shareSummary.textContent = message;
+    elements.shareSummary.classList.add("warning");
+    elements.status.textContent = message;
+    elements.status.classList.add("warning");
+  }
+
+  function formatShareExpiration(expiresAt) {
+    return new Date(expiresAt).toLocaleString();
   }
 
   function validateEmbeddedMarkdownSize(assetPaths) {
@@ -2362,6 +2871,44 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     applyLanguage();
   });
   elements.newDeck.addEventListener("click", requestNewDeck);
+  elements.shareDeck.addEventListener("click", openShareDialog);
+  elements.shareClose.addEventListener("click", closeShareDialog);
+  elements.shareCreate.addEventListener("click", createShareLink);
+  elements.shareCopy.addEventListener("click", copyShareLink);
+  elements.shareRevoke.addEventListener("click", revokeShareLink);
+  elements.shareCopyToEditor.addEventListener("click", copySharedDeckToEditor);
+  elements.shareDialog.addEventListener("click", (event) => {
+    if (event.target === elements.shareDialog) closeShareDialog();
+  });
+  elements.aiTools.addEventListener("click", openAiToolsDialog);
+  elements.aiToolsClose.addEventListener("click", closeAiToolsDialog);
+  elements.aiPromptMode.addEventListener("change", (event) => {
+    state.aiPromptMode = event.target.value;
+    renderAiPromptControls();
+    markAiPromptStale();
+  });
+  elements.aiPromptSource.addEventListener("change", (event) => {
+    state.aiPromptSource = event.target.value;
+    renderAiPromptControls();
+    markAiPromptStale();
+  });
+  [
+    elements.aiAudience,
+    elements.aiDetail,
+    elements.aiSlideDensity,
+    elements.aiOutputLanguage,
+  ].forEach((element) => element.addEventListener("change", updateAiPreferences));
+  elements.aiCustomInstruction.addEventListener("input", updateAiPreferences);
+  elements.aiResetPreferences.addEventListener("click", resetAiPreferences);
+  elements.aiExternalContent.addEventListener("input", markAiPromptStale);
+  elements.aiGeneratePrompt.addEventListener("click", generateAiPrompt);
+  elements.aiCopyPrompt.addEventListener("click", copyAiPrompt);
+  elements.aiResult.addEventListener("input", renderAiResultReview);
+  elements.aiApplyResult.addEventListener("click", applyAiResult);
+  elements.aiUndoApply.addEventListener("click", undoAiApply);
+  elements.aiToolsDialog.addEventListener("click", (event) => {
+    if (event.target === elements.aiToolsDialog) closeAiToolsDialog();
+  });
   elements.newDeckConfirm.addEventListener("click", confirmNewDeck);
   elements.newDeckCancel.addEventListener("click", closeNewDeckDialog);
   elements.newDeckDialog.addEventListener("click", (event) => {
@@ -2531,6 +3078,8 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     if (event.key === "Escape" && !state.presentationOpen && !elements.newDeckDialog.hidden) closeNewDeckDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.projectizeDialog.hidden) closeProjectizeDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.embeddedExportDialog.hidden) closeEmbeddedExportDialog();
+    if (event.key === "Escape" && !state.presentationOpen && !elements.shareDialog.hidden) closeShareDialog();
+    if (event.key === "Escape" && !state.presentationOpen && !elements.aiToolsDialog.hidden) closeAiToolsDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.cloudAuthDialog.hidden) closeCloudAuthDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.cloudOpenDialog.hidden) closeCloudPicker();
     if (event.key === "Escape" && !state.presentationOpen && !elements.cloudSaveDialog.hidden) closeCloudSaveDialog();
@@ -2542,5 +3091,6 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
   });
 
   applyLanguage();
+  initializeSharedRoute();
   initializeCloudAuth();
-  initializeProjectStorage();
+  if (!state.sharedReadOnly) initializeProjectStorage();

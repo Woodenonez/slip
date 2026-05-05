@@ -182,6 +182,8 @@ App edits files directly in user cloud
 ```
 
 ## V4 — Sharing + AI
+Status: complete as of 2026-05-04. Detailed completion notes are in `v4_done.md` and `v4_split_done.md`.
+
 ### Temporary Share Links
 * Generate URL:
 ```text

@@ -1,11 +1,18 @@
 # Slip V4 Detailed Implementation Plan — Split Version
 
+Status: complete as of 2026-05-04.
+
 Scope: V4 is split into two independent tracks:
 
 - **V4a — Temporary Sharing**
 - **V4b — AI-Assisted Markdown Workflows**
 
 Primary success signal: users can quickly share decks through temporary links and use AI-assisted workflows to convert, refine, or repurpose Slip Markdown.
+
+Completion notes:
+- V4a shipped temporary single-Markdown share links with TTL, read-only shared routes, revoke, sanitization, and copy-to-editor.
+- V4b shipped external AI prompt mode with File to Slip Markdown, Refine Slip Markdown, Slip to Report, local prompt preferences, copyable fenced prompt output, result validation, current/result comparison, apply, and undo.
+- Native AI remains explicitly future backend work because browser-only API calls would expose credentials.
 
 ---
 
@@ -320,7 +327,6 @@ Input options:
 
 ```text
 Current Slip Markdown
-Selected text only
 User-pasted external content
 No content, prompt template only
 ```

@@ -28,6 +28,7 @@
               <button id="cloud-disconnect" type="button" data-i18n="cloudDisconnect">Disconnect</button>
             </div>
           </div>
+          <button id="share-deck" type="button" data-i18n="share">Share</button>
           <span class="toolbar-divider" aria-hidden="true">|</span>
           <div class="toolbar-menu">
             <button id="import-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false" data-i18n="import">Import</button>
@@ -45,15 +46,16 @@
           <div class="toolbar-menu">
             <button id="export-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false" data-i18n="export">Export</button>
             <div id="export-menu-options" class="toolbar-menu-options" hidden>
-              <button id="export-md" type="button" data-i18n="markdownPlain">Markdown (plain)</button>
-              <button id="export-self-contained-md" type="button" data-i18n="markdownEmbedded">Markdown (embedded)</button>
-              <button id="export-project-package" type="button" data-i18n="projectPackage">Project Package</button>
+              <button id="export-md" type="button" data-i18n="markdownPlain">Plain (md)</button>
+              <button id="export-self-contained-md" type="button" data-i18n="markdownEmbedded">Embedded (md)</button>
+              <button id="export-project-package" type="button" data-i18n="projectPackage">Package</button>
               <button id="print-pdf" type="button" data-i18n="pdf">PDF</button>
             </div>
           </div>
           <span class="toolbar-divider" aria-hidden="true">|</span>
           <button id="projectize" type="button" data-i18n="projectize">Projectize</button>
           <button id="auto-split" type="button" data-i18n="autoSplit">Auto Split</button>
+          <button id="ai-tools" type="button" data-i18n="aiTools">AI Tools</button>
           <button id="custom-css-toggle" type="button">CSS</button>
           <span class="toolbar-divider" aria-hidden="true">|</span>
           <div class="toolbar-menu">
@@ -269,6 +271,137 @@
           <button id="cloud-conflict-reload" type="button" data-i18n="reloadRemote">Reload Remote</button>
           <button id="cloud-conflict-duplicate" type="button" data-i18n="saveDuplicate">Save Duplicate</button>
           <button id="cloud-conflict-overwrite" type="button" data-i18n="overwriteRemote">Overwrite</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="share-dialog" class="dialog-backdrop" aria-label="Share deck" hidden>
+      <div class="dialog share-dialog">
+        <header class="dialog-header">
+          <h2 data-i18n="shareDeck">Share Deck</h2>
+          <button id="share-close" type="button" aria-label="Close share dialog" data-i18n="close">Close</button>
+        </header>
+        <div class="dialog-body">
+          <p id="share-summary" class="dialog-summary"></p>
+          <label class="dialog-field">
+            <span data-i18n="shareExpiration">Expiration</span>
+            <select id="share-ttl">
+              <option value="default" data-i18n="shareTtlDefault">6 hours</option>
+              <option value="short" data-i18n="shareTtlShort">24 hours</option>
+              <option value="max" data-i18n="shareTtlMax">7 days</option>
+            </select>
+          </label>
+          <label class="dialog-field">
+            <span data-i18n="shareLink">Share link</span>
+            <input id="share-url" type="text" readonly>
+          </label>
+        </div>
+        <footer class="dialog-footer">
+          <button id="share-create" type="button" data-i18n="createShareLink">Create Link</button>
+          <button id="share-copy" type="button" data-i18n="copyLink" disabled>Copy Link</button>
+          <button id="share-revoke" type="button" data-i18n="revokeLink" disabled>Revoke Link</button>
+          <button id="share-copy-to-editor" type="button" data-i18n="copyToMyEditor" hidden>Copy to My Editor</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="ai-tools-dialog" class="dialog-backdrop" aria-label="AI tools" hidden>
+      <div class="dialog ai-tools-dialog">
+        <header class="dialog-header">
+          <h2 data-i18n="aiTools">AI Tools</h2>
+          <button id="ai-tools-close" type="button" aria-label="Close AI tools" data-i18n="close">Close</button>
+        </header>
+        <div class="dialog-body ai-tools-body">
+          <p class="dialog-summary" data-i18n="aiToolsSummary">Generate prompts for external AI tools. Slip does not send content to an AI service.</p>
+          <div class="ai-tools-grid">
+            <label class="dialog-field">
+              <span data-i18n="promptMode">Prompt mode</span>
+              <select id="ai-prompt-mode">
+                <option value="file-to-slip" data-i18n="fileToSlip">File to Slip Markdown</option>
+                <option value="refine-slip" data-i18n="refineSlip">Refine Slip Markdown</option>
+                <option value="slip-to-report" data-i18n="slipToReport">Slip to Report</option>
+              </select>
+            </label>
+            <label class="dialog-field">
+              <span data-i18n="inputSource">Input source</span>
+              <select id="ai-prompt-source">
+                <option value="current" data-i18n="currentSlipMarkdown">Current Slip Markdown</option>
+                <option value="pasted" data-i18n="pastedExternalContent">User-pasted external content</option>
+                <option value="template" data-i18n="promptTemplateOnly">No content, prompt template only</option>
+              </select>
+            </label>
+          </div>
+          <div class="ai-tools-grid ai-preferences-grid">
+            <label class="dialog-field">
+              <span data-i18n="aiAudience">Audience</span>
+              <select id="ai-audience">
+                <option value="general" data-i18n="aiAudienceGeneral">General</option>
+                <option value="technical" data-i18n="aiAudienceTechnical">Technical</option>
+                <option value="executive" data-i18n="aiAudienceExecutive">Executive</option>
+                <option value="teaching" data-i18n="aiAudienceTeaching">Teaching</option>
+              </select>
+            </label>
+            <label class="dialog-field">
+              <span data-i18n="aiDetail">Detail</span>
+              <select id="ai-detail">
+                <option value="concise" data-i18n="aiDetailConcise">Concise</option>
+                <option value="balanced" data-i18n="aiDetailBalanced">Balanced</option>
+                <option value="detailed" data-i18n="aiDetailDetailed">Detailed</option>
+              </select>
+            </label>
+            <label class="dialog-field">
+              <span data-i18n="aiSlideDensity">Slide density</span>
+              <select id="ai-slide-density">
+                <option value="compact" data-i18n="aiDensityCompact">Compact</option>
+                <option value="balanced" data-i18n="aiDensityBalanced">Balanced</option>
+                <option value="spacious" data-i18n="aiDensitySpacious">Spacious</option>
+              </select>
+            </label>
+            <label class="dialog-field">
+              <span data-i18n="aiOutputLanguage">Output language</span>
+              <span class="ai-output-actions">
+                <select id="ai-output-language">
+                  <option value="same" data-i18n="aiLanguageSame">Same as input</option>
+                  <option value="english" data-i18n="aiLanguageEnglish">English</option>
+                  <option value="chinese" data-i18n="aiLanguageChinese">Chinese</option>
+                </select>
+                <button id="ai-generate-prompt" class="ai-icon-button ai-generate-button" type="button" title="Generate" aria-label="Generate">▶</button>
+                <button id="ai-reset-preferences" class="ai-icon-button ai-reset-button" type="button" title="Reset" aria-label="Reset">↻</button>
+              </span>
+            </label>
+          </div>
+          <label class="dialog-field">
+            <span data-i18n="aiCustomInstruction">Custom instruction</span>
+            <textarea id="ai-custom-instruction" spellcheck="true" data-i18n-placeholder="aiCustomInstructionPlaceholder"></textarea>
+          </label>
+          <label class="dialog-field">
+            <span data-i18n="externalContent">External content</span>
+            <textarea id="ai-external-content" spellcheck="true" data-i18n-placeholder="externalContentPlaceholder"></textarea>
+          </label>
+          <label class="dialog-field">
+            <span data-i18n="generatedPrompt">Generated prompt</span>
+            <textarea id="ai-generated-prompt" spellcheck="false" readonly></textarea>
+          </label>
+          <label class="dialog-field">
+            <span data-i18n="aiResult">AI result</span>
+            <textarea id="ai-result" spellcheck="true" data-i18n-placeholder="aiResultPlaceholder"></textarea>
+          </label>
+          <p id="ai-result-review" class="dialog-summary ai-result-review" data-i18n="aiResultEmpty">Paste AI output to review it before applying.</p>
+          <div class="ai-compare-grid">
+            <label class="dialog-field">
+              <span data-i18n="aiCurrentPreview">Current content</span>
+              <textarea id="ai-current-preview" spellcheck="false" readonly></textarea>
+            </label>
+            <label class="dialog-field">
+              <span data-i18n="aiResultPreview">Result to apply</span>
+              <textarea id="ai-result-preview" spellcheck="false" readonly></textarea>
+            </label>
+          </div>
+        </div>
+        <footer class="dialog-footer">
+          <button id="ai-copy-prompt" type="button" data-i18n="copyPrompt">Copy Prompt</button>
+          <button id="ai-undo-apply" type="button" data-i18n="undoAiApply" disabled>Undo AI Apply</button>
+          <button id="ai-apply-result" type="button" data-i18n="applyAiResult" disabled>Apply Result</button>
         </footer>
       </div>
     </section>
