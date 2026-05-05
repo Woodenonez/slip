@@ -465,4 +465,5 @@ V4 started on 2026-05-04 and is now marked complete in `plan/v4_done.md` and `pl
 
 - Marked the current project state as alpha test version ready.
 - Prepared the current V1 through V4 complete state for the `draft-version` branch.
+- Fixed the `draft-version` GitHub Pages build so the editor boots and remains editable under `/slip/`; CodeMirror packages now stay in one production chunk to avoid runtime initialization errors from over-splitting.
 - No new runtime or development dependencies were introduced.
