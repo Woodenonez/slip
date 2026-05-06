@@ -34,7 +34,8 @@ Slip is a Vite-powered single-page Markdown slide editor:
 - `npm run test:v2`: run Playwright V2 project model regressions.
 - `npm run test:v3`: run V3 cloud-auth, cloud-connector, Google Drive connector, and OneDrive connector module checks plus Playwright cloud workflow regressions.
 - `npm run test:v4`: run V4 sharing and external AI prompt checks.
-- `npm run release:check`: run syntax, production build, V1, V2, V3, and V4 regressions.
+- `npm run test:v5`: run V5 presentation-link browser regressions.
+- `npm run release:check`: run syntax, production build, V1, V2, V3, V4, and V5 regressions.
 
 After a user-visible change, run `npm run check`, `npm run build`, and relevant tests. For release readiness, use `npm run release:check`.
 
@@ -50,10 +51,10 @@ Playwright covers V1 browser regressions. Current required checks are:
 
 - `npm run check`
 - `npm run build`
-- `npm run test:v1` or a narrower relevant test such as `npm run test:v2`, `npm run test:v3`, or `npm run test:v4`
+- `npm run test:v1` or a narrower relevant test such as `npm run test:v2`, `npm run test:v3`, `npm run test:v4`, or `npm run test:v5`
 - Manual browser validation at `http://127.0.0.1:5173/` when UI changed
 
-For parser changes, test frontmatter, `---`, notes, custom CSS, code blocks, and KaTeX math. For UI copy changes, update `src/i18n.js` for both English and Chinese and test the language picker. For V2 project-mode changes, test import, migration, IndexedDB restore, asset panel behavior, reference rewriting, project package round trips, self-contained Markdown export, large-project performance, and missing-asset recovery. For V3 cloud changes, test auth configuration warnings, provider selection, Google Identity Services token auth, Microsoft OAuth callback exchange, minimal provider scopes, session status, disconnect cleanup and Google token revocation, expired-session recovery, connector selection, metadata normalization, Drive/OneDrive request mapping, cloud picker behavior, recent cloud file memory, save/save-as location binding, dirty-state prompts, conflict resolution, pending write buffering, and online retry. For V4 sharing changes, test share schema validation, supported payload types, TTL expiration, owner-token behavior, cleanup selection, API create/read/delete behavior, payload size limits, sanitization, Share UI create/copy/revoke behavior, read-only shared routes, and copy-to-editor behavior. For V4 AI prompt changes, test prompt modes, input sources, prompt preferences, template-only behavior, clipboard copy, AI result validation, review/apply/undo behavior, and that no AI API call is introduced.
+For parser changes, test frontmatter, `---`, notes, custom CSS, code blocks, and KaTeX math. For UI copy changes, update `src/i18n.js` for both English and Chinese and test the language picker. For V2 project-mode changes, test import, migration, IndexedDB restore, asset panel behavior, reference rewriting, project package round trips, self-contained Markdown export, large-project performance, and missing-asset recovery. For V3 cloud changes, test auth configuration warnings, provider selection, Google Identity Services token auth, Microsoft OAuth callback exchange, minimal provider scopes, session status, disconnect cleanup and Google token revocation, expired-session recovery, connector selection, metadata normalization, Drive/OneDrive request mapping, cloud picker behavior, recent cloud file memory, save/save-as location binding, dirty-state prompts, conflict resolution, pending write buffering, and online retry. For V4 sharing changes, test share schema validation, supported payload types, TTL expiration, owner-token behavior, cleanup selection, API create/read/delete behavior, payload size limits, sanitization, Share UI create/copy/revoke behavior, read-only shared routes, and copy-to-editor behavior. For V4 AI prompt changes, test prompt modes, input sources, prompt preferences, template-only behavior, clipboard copy, AI result validation, review/apply/undo behavior, and that no AI API call is introduced. For V5 presentation changes, test presentation click handling, web-panel open/close behavior, and the open-in-new-tab fallback for sites that block embedding.
 
 ## Commit & Pull Request Guidelines
 
@@ -63,4 +64,4 @@ Pull requests should include a concise summary, verification commands, manual br
 
 ## Agent-Specific Instructions
 
-V1, V2, V3, and V4 are complete. Do not start V5 or deferred Mermaid work without user confirmation. If a requested change is risky, impractical, or likely to harm the project architecture, explain why and confirm before implementing.
+V1, V2, V3, and V4 are complete. V5 is active and interactive; there is no written V5 plan yet. Do not start deferred Mermaid work without user confirmation. If a requested change is risky, impractical, or likely to harm the project architecture, explain why and confirm before implementing.

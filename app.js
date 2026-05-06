@@ -92,6 +92,19 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
   const cloudAuthProviders = createCloudAuthProviders(import.meta.env || {});
   const i18n = createI18n(localStorage.getItem("slip.language") || navigator.language?.slice(0, 2) || defaultLanguage);
   const t = (key, params) => i18n.t(key, params);
+  const supportedThemes = ["clean", "contrast", "paper", "custom"];
+  const textCssBuilderProperties = [
+    { value: "font-size", label: "cssSize" },
+    { value: "color", label: "cssColor" },
+    { value: "letter-spacing", label: "cssSpace" },
+  ];
+  const pageCssBuilderProperties = [
+    { value: "background-color", label: "cssPageBackground" },
+    { value: "padding-top", label: "cssMarginTop" },
+    { value: "padding-bottom", label: "cssMarginBottom" },
+    { value: "padding-left", label: "cssMarginLeft" },
+    { value: "padding-right", label: "cssMarginRight" },
+  ];
 
   const state = {
     markdown: initialProjectDocument?.markdown || localStorage.getItem("slip.markdown") || sampleMarkdown,
@@ -102,6 +115,7 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     presentationMode: "presenter",
     presentationStartedAt: 0,
     presentationTimer: 0,
+    presentationWebUrl: "",
     autoSplitDraft: null,
     project: initialProjectDocument
       ? createProjectFromMarkdown(initialProjectDocument.markdown, [], initialProjectDocument.manifest)
@@ -335,8 +349,14 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     customCssToggle: document.getElementById("custom-css-toggle"),
     customCssPanel: document.getElementById("custom-css-panel"),
     customCssEditor: document.getElementById("custom-css-editor"),
+    customCssClear: document.getElementById("custom-css-clear"),
     customCssClose: document.getElementById("custom-css-close"),
     customCssStatus: document.getElementById("custom-css-status"),
+    customCssTarget: document.getElementById("custom-css-target"),
+    customCssProperty: document.getElementById("custom-css-property"),
+    customCssValue: document.getElementById("custom-css-value"),
+    customCssColor: document.getElementById("custom-css-color"),
+    customCssAdd: document.getElementById("custom-css-add"),
     assetPanel: document.getElementById("asset-panel"),
     assetImport: document.getElementById("asset-import"),
     assetList: document.getElementById("asset-list"),
@@ -357,6 +377,10 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     presentationCount: document.getElementById("presentation-count"),
     presentationTimer: document.getElementById("presentation-timer"),
     presentationNotes: document.getElementById("presentation-notes"),
+    presentationWebPanel: document.getElementById("presentation-web-panel"),
+    presentationWebFrame: document.getElementById("presentation-web-frame"),
+    presentationWebOpen: document.getElementById("presentation-web-open"),
+    presentationWebClose: document.getElementById("presentation-web-close"),
     exitPresent: document.getElementById("exit-present"),
   };
 
@@ -427,6 +451,7 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     renderCloudOpenDialog();
     renderShareDialog();
     renderAiPromptControls();
+    renderCssBuilderProperties();
     if (elements.aiToolsDialog && !elements.aiToolsDialog.hidden && !elements.aiGeneratedPrompt.value) {
       clearAiGeneratedPrompt();
     }
@@ -601,7 +626,7 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     elements.deckTitle.textContent = deck.meta.title;
     elements.projectMode.textContent = isProjectMode ? t("project") : t("singleFile");
     elements.projectize.disabled = isProjectMode;
-    elements.themePicker.value = ["clean", "contrast", "paper"].includes(deck.meta.theme) ? deck.meta.theme : "clean";
+    elements.themePicker.value = supportedThemes.includes(deck.meta.theme) ? deck.meta.theme : "clean";
     elements.sizePicker.value = deck.meta.size;
     setSlideSizeVars(deck.meta.size);
     updatePrintSize(deck.meta.size);
@@ -632,7 +657,7 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
   }
 
   function renderPreview(deck) {
-    const theme = ["clean", "contrast", "paper"].includes(deck.meta.theme) ? deck.meta.theme : "clean";
+    const theme = supportedThemes.includes(deck.meta.theme) ? deck.meta.theme : "clean";
     const size = deck.meta.size;
     const assetRenderKey = projectAssetRenderKey();
     const nextKeys = new Map();
@@ -738,6 +763,7 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     if (elements.customCssEditor.value !== css) {
       elements.customCssEditor.value = css;
     }
+    elements.customCssStatus.classList.remove("warning");
     elements.customCssStatus.textContent = css ? t("customCssApplied") : t("customCssEmpty");
   }
 
@@ -817,9 +843,9 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
           <div class="asset-meta">${formatBytes(asset.size)} · ${escapeHtml(t("usedTimes", { count: useCount, plural: useCount === 1 ? "" : "s" }))}</div>
           ${duplicates.has(asset.hash) ? `<div class="asset-duplicate">${escapeHtml(t("duplicateContent"))}</div>` : ""}
           <div class="asset-item-actions">
-            <button type="button" data-action="insert">${escapeHtml(t("insert"))}</button>
-            <button type="button" data-action="rename">${escapeHtml(t("rename"))}</button>
-            <button type="button" data-action="remove">${escapeHtml(t("remove"))}</button>
+            <button class="asset-icon-button" type="button" data-action="insert" aria-label="${escapeHtml(t("insert"))}" title="${escapeHtml(t("insert"))}">＋</button>
+            <button class="asset-icon-button" type="button" data-action="rename" aria-label="${escapeHtml(t("rename"))}" title="${escapeHtml(t("rename"))}">✎</button>
+            <button class="asset-icon-button asset-remove-button" type="button" data-action="remove" aria-label="${escapeHtml(t("remove"))}" title="${escapeHtml(t("remove"))}">×</button>
           </div>
         </div>`;
       elements.assetList.appendChild(item);
@@ -2348,7 +2374,39 @@ ${message}
       .replace(/\\/g, "/");
   }
 
+  function removePageBackgroundCss(css) {
+    return css
+      .split("}")
+      .map((rule) => rule.trim())
+      .filter(Boolean)
+      .map((rule) => {
+        const parts = rule.split("{");
+        if (parts.length < 2) return rule;
+        const selectors = parts.shift().trim();
+        let declarations = parts.join("{").trim();
+        const hasPageSelector = selectors.split(",").some((selector) => selector.trim() === ":page");
+        if (!hasPageSelector) return `${selectors} {\n${declarations}\n}`;
+        declarations = declarations
+          .split(";")
+          .map((declaration) => declaration.trim())
+          .filter(Boolean)
+          .filter((declaration) => !/^background-color\s*:/i.test(declaration))
+          .map((declaration) => `  ${declaration};`)
+          .join("\n");
+        return declarations ? `${selectors} {\n${declarations}\n}` : "";
+      })
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
   function setTheme(theme) {
+    if (["clean", "contrast", "paper"].includes(theme)) {
+      const nextCss = removePageBackgroundCss(elements.customCssEditor.value);
+      if (nextCss !== elements.customCssEditor.value.trim()) {
+        clearTimeout(updateTimer);
+        setCustomCss(nextCss);
+      }
+    }
     setFrontmatterValue("theme", theme);
   }
 
@@ -2364,6 +2422,111 @@ ${message}
       ? `${parts.frontmatter}<style>\n${css.trim()}\n</style>\n\n${withoutCss.trimStart()}`
       : `${parts.frontmatter}${withoutCss.trimStart()}`;
     setEditorValue(nextMarkdown);
+  }
+
+  function renderCssBuilderProperties() {
+    if (!elements.customCssProperty) return;
+    const previous = elements.customCssProperty.value;
+    const options = elements.customCssTarget.value === "page" ? pageCssBuilderProperties : textCssBuilderProperties;
+    elements.customCssProperty.replaceChildren(...options.map((option) => {
+      const item = document.createElement("option");
+      item.value = option.value;
+      item.textContent = t(option.label);
+      return item;
+    }));
+    elements.customCssProperty.value = options.some((option) => option.value === previous) ? previous : options[0].value;
+    updateCssColorPickerState();
+  }
+
+  function isCssColorProperty(property) {
+    return property === "color" || property === "background-color";
+  }
+
+  function normalizeHexColor(value) {
+    const trimmed = value.trim();
+    const shortHex = trimmed.match(/^#([0-9a-f]{3})$/i);
+    if (shortHex) {
+      return `#${shortHex[1].split("").map((part) => part + part).join("")}`.toLowerCase();
+    }
+    return /^#[0-9a-f]{6}$/i.test(trimmed) ? trimmed.toLowerCase() : "";
+  }
+
+  function updateCssColorPickerState() {
+    const isColor = isCssColorProperty(elements.customCssProperty.value);
+    elements.customCssColor.hidden = !isColor;
+    elements.customCssColor.disabled = !isColor;
+    if (!isColor) return;
+    const hex = normalizeHexColor(elements.customCssValue.value);
+    if (hex) elements.customCssColor.value = hex;
+  }
+
+  function chooseCssColor() {
+    elements.customCssValue.value = elements.customCssColor.value;
+    elements.customCssValue.focus();
+  }
+
+  function openCssColorPicker() {
+    if (!isCssColorProperty(elements.customCssProperty.value)) return;
+    try {
+      if (typeof elements.customCssColor.showPicker === "function") {
+        elements.customCssColor.showPicker();
+        return;
+      }
+      elements.customCssColor.click();
+    } catch {
+      // Some browsers only allow opening the native picker from direct user activation.
+    }
+  }
+
+  function normalizeCssBuilderValue(property, value) {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (
+      ["font-size", "letter-spacing", "padding-top", "padding-bottom", "padding-left", "padding-right"].includes(property)
+      && /^-?\d+(\.\d+)?$/.test(trimmed)
+    ) {
+      return `${trimmed}px`;
+    }
+    return trimmed;
+  }
+
+  function createCssBuilderRule(target, property, value) {
+    if (target === "page") {
+      const selector = property === "background-color" ? ":page" : ":page-content";
+      return `${selector} {\n  ${property}: ${value};\n}`;
+    }
+    return `${target} {\n  ${property}: ${value};\n}`;
+  }
+
+  function addCustomCssRule() {
+    const selector = elements.customCssTarget.value;
+    const property = elements.customCssProperty.value;
+    const value = normalizeCssBuilderValue(property, elements.customCssValue.value);
+    if (!value) {
+      elements.customCssStatus.textContent = t("customCssValueRequired");
+      elements.customCssStatus.classList.add("warning");
+      elements.customCssValue.focus();
+      return;
+    }
+
+    const rule = createCssBuilderRule(selector, property, value);
+    const currentCss = elements.customCssEditor.value.trim();
+    const nextCss = currentCss ? `${currentCss}\n\n${rule}` : rule;
+    clearTimeout(updateTimer);
+    elements.customCssEditor.value = nextCss;
+    elements.customCssValue.value = "";
+    elements.customCssStatus.classList.remove("warning");
+    if (selector === "page" && state.deck.meta.theme !== "custom") {
+      setTheme("custom");
+    }
+    setCustomCss(nextCss);
+  }
+
+  function clearCustomCssRules() {
+    clearTimeout(updateTimer);
+    elements.customCssValue.value = "";
+    elements.customCssStatus.classList.remove("warning");
+    setCustomCss("");
   }
 
   function splitFrontmatterBlock(markdown) {
@@ -2525,6 +2688,7 @@ ${message}
   function closePresentation() {
     state.presentationOpen = false;
     stopPresentationTimer();
+    closePresentationWebPanel();
     elements.presentation.hidden = true;
     elements.app.removeAttribute("aria-hidden");
   }
@@ -2533,7 +2697,7 @@ ${message}
     const deck = state.deck;
     const slide = deck.slides[state.activeSlide] || deck.slides[0];
     const nextSlide = deck.slides[state.activeSlide + 1];
-    const theme = ["clean", "contrast", "paper"].includes(deck.meta.theme) ? deck.meta.theme : "clean";
+    const theme = supportedThemes.includes(deck.meta.theme) ? deck.meta.theme : "clean";
     elements.presentationSlide.innerHTML = slideHtml(slide, theme, deck.meta.size);
     scalePresentationSlide();
     elements.presentationNext.innerHTML = nextSlide
@@ -2575,6 +2739,45 @@ ${message}
     const minutes = String(Math.floor(elapsed / 60)).padStart(2, "0");
     const seconds = String(elapsed % 60).padStart(2, "0");
     elements.presentationTimer.textContent = `${minutes}:${seconds}`;
+  }
+
+  function getExternalWebUrl(rawHref) {
+    try {
+      const url = new URL(rawHref, window.location.href);
+      if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+      return url.href;
+    } catch {
+      return "";
+    }
+  }
+
+  function openPresentationWebPanel(rawHref) {
+    const url = getExternalWebUrl(rawHref);
+    if (!url) return;
+    state.presentationWebUrl = url;
+    elements.presentationWebFrame.src = url;
+    elements.presentationWebPanel.hidden = false;
+  }
+
+  function closePresentationWebPanel() {
+    state.presentationWebUrl = "";
+    elements.presentationWebFrame.removeAttribute("src");
+    elements.presentationWebPanel.hidden = true;
+  }
+
+  function openPresentationWebInNewTab() {
+    if (!state.presentationWebUrl) return;
+    window.open(state.presentationWebUrl, "_blank", "noopener,noreferrer");
+  }
+
+  function handlePresentationLinkClick(event) {
+    const link = event.target.closest("a[href]");
+    if (!link || !elements.presentationSlide.contains(link)) return;
+    const url = getExternalWebUrl(link.getAttribute("href"));
+    if (!url) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openPresentationWebPanel(url);
   }
 
   function movePresentation(delta) {
@@ -2734,7 +2937,7 @@ ${message}
     if (!asset) return;
 
     if (button.dataset.action === "insert") insertAssetReference(asset);
-    if (button.dataset.action === "rename") renameAsset(asset);
+    if (button.dataset.action === "rename") startInlineAssetRename(asset, item);
     if (button.dataset.action === "remove") removeAsset(asset);
   }
 
@@ -2742,12 +2945,57 @@ ${message}
     insertAtCursor(`\n![${asset.filename}](${asset.path})\n`);
   }
 
-  function renameAsset(asset) {
-    const nextName = window.prompt(t("newAssetFilename"), asset.filename);
-    if (!nextName) return;
-    if (sanitizeFilename(nextName) === asset.filename) return;
+  function startInlineAssetRename(asset, item) {
+    const nameElement = item?.querySelector(".asset-name");
+    if (!nameElement) return;
+    clearTimeout(updateTimer);
+    const input = document.createElement("input");
+    input.className = "asset-name-input";
+    input.type = "text";
+    input.value = asset.filename;
+    input.setAttribute("aria-label", t("rename"));
+    nameElement.replaceChildren(input);
+    input.focus();
+    input.select();
+
+    let completed = false;
+    const finish = (shouldCommit) => {
+      if (completed) return;
+      completed = true;
+      if (shouldCommit) {
+        renameAsset(asset, input.value);
+        return;
+      }
+      renderAssetPanel();
+    };
+
+    input.addEventListener("blur", () => finish(true));
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        finish(true);
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        finish(false);
+      }
+    });
+  }
+
+  function renameAsset(asset, nextName) {
+    if (!nextName.trim()) {
+      renderAssetPanel();
+      return;
+    }
+    if (sanitizeFilename(nextName) === asset.filename) {
+      renderAssetPanel();
+      return;
+    }
     const nextPath = uniqueAssetPath(nextName);
-    if (nextPath === asset.path) return;
+    if (nextPath === asset.path) {
+      renderAssetPanel();
+      return;
+    }
 
     const oldPath = asset.path;
     const usage = markdownAssetCount(state.markdown, oldPath);
@@ -3022,9 +3270,25 @@ ${message}
   elements.customCssClose.addEventListener("click", () => {
     elements.customCssPanel.hidden = true;
   });
+  elements.customCssClear.addEventListener("click", clearCustomCssRules);
+  elements.customCssTarget.addEventListener("change", renderCssBuilderProperties);
+  elements.customCssProperty.addEventListener("change", () => {
+    updateCssColorPickerState();
+    openCssColorPicker();
+  });
+  elements.customCssValue.addEventListener("focus", openCssColorPicker);
+  elements.customCssValue.addEventListener("input", updateCssColorPickerState);
+  elements.customCssColor.addEventListener("input", chooseCssColor);
   elements.customCssEditor.addEventListener("input", () => {
     clearTimeout(updateTimer);
     updateTimer = window.setTimeout(() => setCustomCss(elements.customCssEditor.value), 250);
+  });
+  elements.customCssAdd.addEventListener("click", addCustomCssRule);
+  elements.customCssValue.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addCustomCssRule();
+    }
   });
   elements.printPdf.addEventListener("click", () => {
     closeToolbarMenus();
@@ -3042,6 +3306,9 @@ ${message}
     openPresentation("presenter");
   });
   elements.exitPresent.addEventListener("click", closePresentation);
+  elements.presentation.addEventListener("click", handlePresentationLinkClick);
+  elements.presentationWebOpen.addEventListener("click", openPresentationWebInNewTab);
+  elements.presentationWebClose.addEventListener("click", closePresentationWebPanel);
   elements.themePicker.addEventListener("change", (event) => setTheme(event.target.value));
   elements.sizePicker.addEventListener("change", (event) => setSize(event.target.value));
   elements.showNotes.addEventListener("change", (event) => {
@@ -3085,12 +3352,17 @@ ${message}
     if (event.key === "Escape" && !state.presentationOpen && !elements.cloudSaveDialog.hidden) closeCloudSaveDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.cloudConflictDialog.hidden) closeCloudConflictDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.autoSplitDialog.hidden) closeAutoSplitDialog();
+    if (event.key === "Escape" && state.presentationOpen && !elements.presentationWebPanel.hidden) {
+      closePresentationWebPanel();
+      return;
+    }
     if (event.key === "Escape" && state.presentationOpen) closePresentation();
     if (event.key === "ArrowRight" || event.key === "PageDown") movePresentation(1);
     if (event.key === "ArrowLeft" || event.key === "PageUp") movePresentation(-1);
   });
 
   applyLanguage();
+  renderCssBuilderProperties();
   initializeSharedRoute();
   initializeCloudAuth();
   if (!state.sharedReadOnly) initializeProjectStorage();

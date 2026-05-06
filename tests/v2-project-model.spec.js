@@ -217,16 +217,22 @@ size: widescreen
   await expect(page.locator('[data-asset-path="assets/a.svg"]')).toContainText("used 1 time");
   await expect(page.getByRole("img", { name: "a.svg" })).toHaveAttribute("src", /^data:image\/svg\+xml;base64,/);
 
-  page.once("dialog", (dialog) => dialog.accept("renamed-a.svg"));
   await page.locator('[data-asset-path="assets/a.svg"] [data-action="rename"]').click();
+  await page.locator('[data-asset-path="assets/a.svg"] .asset-name-input').fill("renamed-a.svg");
+  await page.locator('[data-asset-path="assets/a.svg"] .asset-name-input').press("Enter");
   await expect(page.locator('[data-asset-path="assets/renamed-a.svg"]')).toContainText("used 1 time");
   await expect(page.locator(".cm-content")).toContainText("assets/renamed-a.svg");
   await expect(page.getByRole("img", { name: "a.svg" })).toHaveAttribute("src", /^data:image\/svg\+xml;base64,/);
 
+  await page.locator('[data-asset-path="assets/renamed-a.svg"] [data-action="rename"]').click();
+  await page.locator('[data-asset-path="assets/renamed-a.svg"] .asset-name-input').fill("");
+  await page.locator('[data-asset-path="assets/renamed-a.svg"] .asset-name-input').press("Enter");
+  await expect(page.locator('[data-asset-path="assets/renamed-a.svg"]')).toHaveCount(1);
+
   page.once("dialog", (dialog) => dialog.accept());
   await page.locator('[data-asset-path="assets/renamed-a.svg"] [data-action="remove"]').click();
   await expect(page.locator('[data-asset-path="assets/renamed-a.svg"]')).toHaveCount(0);
-  await expect(page.locator("#status")).toContainText("Unresolved asset reference: assets/renamed-a.svg.");
+  await expect(page.locator("#status")).toContainText("Removed renamed-a.svg; 1 reference now unresolved.");
   await expect(page.locator(".missing-asset")).toContainText("assets/renamed-a.svg");
 });
 

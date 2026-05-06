@@ -466,3 +466,72 @@ V4 started on 2026-05-04 and is now marked complete in `plan/v4_done.md` and `pl
 - Marked the current project state as alpha test version ready.
 - Prepared the current V1 through V4 complete state for the `draft-version` branch.
 - No new runtime or development dependencies were introduced.
+
+---
+
+# V5 Development
+
+V5 started on 2026-05-06. Work is interactive; there is no written V5 plan yet.
+
+## 2026-05-06 (1)
+
+- Added presentation-mode external website handling: clicking an `http` or `https` Markdown link now opens a picture-in-picture web panel instead of immediately opening a new tab.
+- Added open-in-new-tab and close controls to the web panel, plus Escape-to-close behavior when the panel is visible.
+- Added V5 Playwright coverage for opening the panel, using the arrow fallback, and closing it.
+- Updated README and AGENTS with V5 testing and presentation-link behavior.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-06 (2)
+
+- Added a visual CSS rule builder below the Slide CSS panel header with Target, Property, Value, and Add controls.
+- Supported beginner-friendly targets for Heading 1, Heading 2, Heading 3, and regular text, mapped to `h1`, `h2`, `h3`, and `p`.
+- Supported size, color, and letter-spacing rules, with numeric size/spacing values normalized to `px`.
+- Added English and Chinese labels for the CSS builder and V5 browser coverage for generated CSS rules.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-06 (3)
+
+- Renamed the top toolbar CSS action to `Style`.
+- Added a `Clear` button before `Close` in the Slide CSS panel header.
+- Wired Clear to remove the stored top-level style block and update the preview through the existing custom CSS pipeline.
+- Expanded V5 browser coverage for clearing generated style rules.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-06 (4)
+
+- Made the `Present` toolbar menu button green for stronger visual priority.
+- Added Bullet and Page targets to the Style rule builder.
+- Added Page-specific builder properties for slide background color and top, bottom, left, and right content margins.
+- Added a `Custom` theme option and automatically switch decks to `theme: custom` when Page styling is added.
+- Extended scoped custom CSS support with internal `:page` and `:page-content` targets so generated page rules affect the slide surface and slide content area safely.
+- Expanded V5 browser coverage for bullet rules, page background styling, page margin styling, and the automatic Custom theme switch.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-06 (5)
+
+- Fixed Page background styling so generated background-color rules apply to the visible slide content surface rather than the hidden outer slide layer.
+- When a predefined theme is selected, generated `:page` background-color CSS is removed from the stored style block so the chosen theme background is visible again.
+- Expanded V5 browser coverage for predefined-theme cleanup after Page background styling.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-06 (6)
+
+- Added a native color picker to the Style rule builder for color and background-color properties.
+- Chosen colors now populate the Value field as HEX codes, while manual value entry remains supported.
+- Updated README and V5 browser coverage for color-picker driven text and page background styling.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-06 (7)
+
+- Replaced asset card action text buttons with compact icon buttons for Insert, Rename, and Remove.
+- Kept localized tooltips and accessible labels on the asset action buttons.
+- Styled Remove as a compact red danger action so asset cards no longer overflow on image thumbnails.
+- No new runtime or development dependencies were introduced.
+
+## 2026-05-06 (8)
+
+- Replaced the browser prompt asset rename flow with inline editing in the asset name area.
+- Enter or blur commits a non-empty asset filename through the existing rename/reference-update pipeline.
+- Escape cancels inline rename, and empty filenames leave the asset unchanged.
+- Updated V2 asset browser coverage for inline rename and empty-name cancellation.
+- No new runtime or development dependencies were introduced.

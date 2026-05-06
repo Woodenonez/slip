@@ -147,6 +147,17 @@ button:disabled {
   gap: 7px;
 }
 
+#present-menu-button {
+  border-color: #137a3f;
+  background: #15803d;
+  color: #fff;
+}
+
+#present-menu-button:hover {
+  border-color: #0f6b35;
+  background: #166534;
+}
+
 .menu-button::after {
   content: "";
   width: 0;
@@ -362,6 +373,17 @@ button:disabled {
   font-weight: 650;
 }
 
+.asset-name-input {
+  width: 100%;
+  min-height: 28px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  padding: 0 6px;
+  color: var(--text);
+  font: inherit;
+  font-weight: 650;
+}
+
 .asset-path,
 .asset-meta {
   overflow: hidden;
@@ -382,10 +404,22 @@ button:disabled {
   gap: 6px;
 }
 
-.asset-item-actions button {
+.asset-item-actions .asset-icon-button {
+  width: 28px;
+  min-width: 28px;
   min-height: 28px;
-  padding: 0 8px;
+  padding: 0;
   font-size: 12px;
+  line-height: 1;
+}
+
+.asset-item-actions .asset-remove-button {
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+.asset-item-actions .asset-remove-button:hover {
+  background: #fff1f2;
 }
 
 .asset-show-more {
@@ -452,9 +486,9 @@ button:disabled {
   bottom: 18px;
   z-index: 12;
   width: min(520px, calc(100vw - 36px));
-  height: min(420px, calc(100vh - 96px));
+  height: min(468px, calc(100vh - 96px));
   display: grid;
-  grid-template-rows: 44px 1fr 36px;
+  grid-template-rows: 44px auto 1fr 36px;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   background: var(--panel-bg);
@@ -480,6 +514,56 @@ button:disabled {
   font-size: 14px;
 }
 
+.custom-css-builder {
+  display: grid;
+  grid-template-columns: 1fr 1fr minmax(120px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  padding: 10px;
+  border-bottom: 1px solid var(--panel-border);
+  background: #f8fafc;
+}
+
+.custom-css-builder label {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.custom-css-builder select,
+.custom-css-builder input {
+  min-width: 0;
+  width: 100%;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: #fff;
+  color: var(--text);
+}
+
+.custom-css-value-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 6px;
+}
+
+.custom-css-color {
+  padding: 2px;
+  cursor: pointer;
+}
+
+.custom-css-color[hidden] {
+  display: none;
+}
+
+.custom-css-builder button {
+  height: 32px;
+  padding: 0 12px;
+}
+
 #custom-css-editor {
   width: 100%;
   min-height: 0;
@@ -497,6 +581,10 @@ button:disabled {
   padding: 8px 12px;
   border-top: 1px solid var(--panel-border);
   color: var(--muted);
+}
+
+.custom-css-status.warning {
+  color: var(--danger);
 }
 
 .dialog-backdrop {
@@ -917,6 +1005,13 @@ button:disabled {
   --theme-code-bg: #f1e8d7;
 }
 
+.slide.theme-custom {
+  --theme-bg: #ffffff;
+  --theme-text: #17202a;
+  --theme-heading: #0f554c;
+  --theme-code-bg: #f2f5f7;
+}
+
 .slide-inner h1,
 .slide-inner h2,
 .slide-inner h3 {
@@ -1058,6 +1153,68 @@ button:disabled {
   grid-template-rows: 1fr 52px;
   place-items: stretch;
   background: #05070a;
+}
+
+.presentation-web-panel {
+  position: fixed;
+  right: 24px;
+  bottom: 70px;
+  z-index: 35;
+  width: min(760px, 58vw);
+  height: min(520px, 62vh);
+  overflow: hidden;
+  border: 1px solid #354052;
+  border-radius: 8px;
+  background: #0b0f15;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+.presentation-web-panel[hidden] {
+  display: none;
+}
+
+.presentation-web-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+}
+
+.presentation-web-button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d8dde3;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #111827;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.presentation-web-button:hover {
+  background: #f8fafc;
+}
+
+.presentation-web-close {
+  border-color: #ef4444;
+  background: #dc2626;
+  color: #fff;
+}
+
+.presentation-web-close:hover {
+  background: #b91c1c;
+}
+
+.presentation-web-panel iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
 }
 
 .presentation[hidden] {

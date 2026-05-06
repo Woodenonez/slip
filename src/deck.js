@@ -294,6 +294,13 @@ export function renderMarkdown(markdown, options = {}) {
 
 export function scopeCustomCss(css) {
   if (!css.trim()) return "";
+  const scopeSelector = (selector) => {
+    const trimmed = selector.trim();
+    if (trimmed === ":page") return ".slide .slide-inner";
+    if (trimmed === ":page-content") return ".slide .slide-inner";
+    if (trimmed.startsWith(".slide")) return trimmed;
+    return `.slide ${trimmed}`;
+  };
   return css
     .split("}")
     .map((rule) => rule.trim())
@@ -306,7 +313,7 @@ export function scopeCustomCss(css) {
       if (!selectors || !declarations || selectors.startsWith("@")) return "";
       const scopedSelectors = selectors
         .split(",")
-        .map((selector) => `.slide ${selector.trim()}`)
+        .map(scopeSelector)
         .join(", ");
       return `${scopedSelectors} { ${declarations} }`;
     })
