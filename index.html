@@ -56,7 +56,7 @@
           <button id="projectize" type="button" data-i18n="projectize">Projectize</button>
           <button id="auto-split" type="button" data-i18n="autoSplit">Auto Split</button>
           <button id="ai-tools" type="button" data-i18n="aiTools">AI Tools</button>
-          <button id="custom-css-toggle" type="button">CSS</button>
+          <button id="custom-css-toggle" type="button" data-i18n="style">Style</button>
           <span class="toolbar-divider" aria-hidden="true">|</span>
           <div class="toolbar-menu">
             <button id="present-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false" data-i18n="present">Present</button>
@@ -85,6 +85,7 @@
               <option value="clean" data-i18n="clean">Clean</option>
               <option value="contrast" data-i18n="contrast">Contrast</option>
               <option value="paper" data-i18n="paper">Paper</option>
+              <option value="custom" data-i18n="customTheme">Custom</option>
             </select>
             <select id="size-picker" aria-label="Slide size">
               <option value="widescreen">16:9</option>
@@ -129,7 +130,33 @@
     <section id="custom-css-panel" class="custom-css-panel" aria-label="Custom slide CSS" hidden>
       <div class="custom-css-header">
         <h2 data-i18n="slideCss">Slide CSS</h2>
+        <button id="custom-css-clear" type="button" aria-label="Clear custom CSS" data-i18n="clear">Clear</button>
         <button id="custom-css-close" type="button" aria-label="Close custom CSS panel" data-i18n="close">Close</button>
+      </div>
+      <div class="custom-css-builder" aria-label="CSS rule builder">
+        <label>
+          <span data-i18n="cssTarget">Target</span>
+          <select id="custom-css-target">
+            <option value="h1" data-i18n="cssHeading1">Heading 1</option>
+            <option value="h2" data-i18n="cssHeading2">Heading 2</option>
+            <option value="h3" data-i18n="cssHeading3">Heading 3</option>
+            <option value="p" data-i18n="cssText">Text</option>
+            <option value="li" data-i18n="cssBullet">Bullet</option>
+            <option value="page" data-i18n="cssPage">Page</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="cssProperty">Property</span>
+          <select id="custom-css-property"></select>
+        </label>
+        <label>
+          <span data-i18n="cssValue">Value</span>
+          <span class="custom-css-value-control">
+            <input id="custom-css-value" type="text" autocomplete="off" data-i18n-placeholder="cssValuePlaceholder" placeholder="e.g. 40px or #2563eb">
+            <input id="custom-css-color" class="custom-css-color" type="color" value="#2563eb" aria-label="Choose color" title="Choose color">
+          </span>
+        </label>
+        <button id="custom-css-add" type="button" data-i18n="add">Add</button>
       </div>
       <textarea id="custom-css-editor" spellcheck="false"></textarea>
       <p id="custom-css-status" class="custom-css-status" aria-live="polite"></p>
@@ -425,6 +452,13 @@
           </section>
         </aside>
       </div>
+      <aside id="presentation-web-panel" class="presentation-web-panel" aria-label="External website preview" hidden>
+        <div class="presentation-web-toolbar">
+          <button id="presentation-web-open" class="presentation-web-button" type="button" aria-label="Open website" title="Open website">↗</button>
+          <button id="presentation-web-close" class="presentation-web-button presentation-web-close" type="button" aria-label="Close website" title="Close website">×</button>
+        </div>
+        <iframe id="presentation-web-frame" title="External website preview" referrerpolicy="no-referrer"></iframe>
+      </aside>
       <footer class="presentation-footer">
         <span data-i18n="leftRightNavigate">Left / Right to navigate</span>
         <span data-i18n="escExit">Esc to exit</span>

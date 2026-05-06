@@ -50,8 +50,9 @@ This serves the built app and share endpoints at `http://127.0.0.1:4174/`.
 - Large asset lists render lazily in batches with cached image thumbnails to keep the panel responsive.
 - Missing `assets/...` references are shown as non-blocking warnings and placeholders in preview.
 - Click `Auto Split` to review generated slide breaks before accepting.
-- Click `CSS` to add scoped slide CSS in a top-level `<style>` block.
+- Click `Style` to add scoped slide CSS in a top-level `<style>` block. Use the Target / Property / Value helper to add heading, text, bullet, or page background/margin rules without writing CSS manually. Color properties show a color picker that writes the chosen HEX value into Value. You can clear all style rules or edit the CSS text directly.
 - Click `Present` and choose Mirror Mode or Presenter Mode.
+- In presentation mode, external website links open in a picture-in-picture web panel with open-in-new-tab and close controls. Some websites block embedding; use the arrow button to open those links directly.
 - Click `Export` and choose `PDF` to open the browser print dialog.
 
 ## Testing
@@ -63,10 +64,11 @@ npm run test:v1
 npm run test:v2
 npm run test:v3
 npm run test:v4
+npm run test:v5
 npm run release:check
 ```
 
-`npm run test:v1` runs Playwright browser regressions for print sizing, overflow warnings, presentation modes, UI language switching, Auto Split, and a 120-slide deck. `npm run release:check` runs syntax validation, the production build, and the V1, V2, V3, and V4 suites.
+`npm run test:v1` runs Playwright browser regressions for print sizing, overflow warnings, presentation modes, UI language switching, Auto Split, and a 120-slide deck. `npm run release:check` runs syntax validation, the production build, and the V1, V2, V3, V4, and V5 suites.
 
 `npm run test:v2` runs the V2 project-mode regressions for project import, migration, autosave restore, asset management, reference rewriting, package import/export, self-contained export, large-project performance, and missing-asset recovery.
 
@@ -74,6 +76,8 @@ npm run release:check
 
 `npm run test:v4` runs V4 temporary sharing model checks for payload schema, TTL options, expiration, cleanup selection, and current single-Markdown support.
 It also checks the local Node share API for create, read, revoke, expiration, size limits, and basic sanitization, plus browser regressions for Share UI creation/copy/revoke, read-only shared deck routes, external AI prompt generation, prompt preferences, and AI result review/apply/undo behavior.
+
+`npm run test:v5` runs V5 presentation-link browser coverage for the website picture-in-picture panel, open-in-new-tab fallback, and close behavior.
 
 The last self-contained no-build baseline is preserved in git commit `044fa79`.
 
