@@ -33,6 +33,8 @@ This serves the built app and share endpoints at `http://127.0.0.1:4174/`.
 - Click `Import` and choose `File` for local Markdown files.
 - Click `Export` and choose `Plain (md)` to download the current deck as `.md`.
 - Click `Projectize`, then confirm, to convert the current deck into the V2 project model.
+- Click `Insert > Two Columns` to insert a two-column Markdown block. Ratios such as `4:6` must add up to 10, and each column can contain regular Markdown, images, lists, math, or code.
+- Click `Insert > Basic Chart` to insert a `slip-chart` text chart block for bar charts, dot charts, progress bars, or a custom text chart.
 - Click `Export` and choose `Embedded (md)` to inline project assets as data URLs in one `.md` file. Embedded Markdown export is refused when any image is over 350 KB or total images exceed 1.5 MB.
 - Click `Export` and choose `Package` to download a project-mode deck as a `.zip` containing `slides.md`, `config.json`, and `assets/`.
 - Click `Import` and choose `Package` to restore a structured Slip `.zip` project package.
@@ -44,12 +46,32 @@ This serves the built app and share endpoints at `http://127.0.0.1:4174/`.
 - If a cloud save fails because the network/provider is unavailable, Slip buffers the latest write locally, marks the file as pending, and retries when the browser comes back online.
 - Click `Share` to create a temporary read-only share link when the app is served by `npm run share:server`. Share links default to 6 hours, can be extended to 24 hours or 7 days, can be copied, and can be revoked with the local owner token.
 - Open `/share/:id` links to view a shared deck read-only. Use `Copy to My Editor` to make an editable local copy.
-- Click `AI Tools` to generate prompts for external AI tools. Choose File to Slip Markdown when you will attach a TXT/PDF file in the external AI tool, or choose Refine Slip Markdown / Slip to Report for an existing deck. File to Slip does not include the current editor content. Prompt preferences for audience, detail, slide density, output language, and custom instructions are stored locally. Click `Generate` to build the prompt after setting requirements. Paste the external AI result back into the review area to compare current/result content, check blocking issues and warnings, apply it, or undo the last AI apply. Slip does not send content to an AI service.
+- Click `AI Tools > Prompt` to generate prompts for external AI tools. Choose File to Slip Markdown when you will attach a TXT/PDF file in the external AI tool, or choose Refine Slip Markdown / Slip to Report for an existing deck. File to Slip does not include the current editor content. Prompt preferences for audience, detail, slide density, output language, and custom instructions are stored locally. Click `Generate` to build the prompt after setting requirements. Paste the external AI result back into the review area to compare current/result content, check blocking issues and warnings, apply it, or undo the last AI apply. Slip does not send content to an AI service.
 - Project decks are autosaved in browser storage and restored on refresh.
-- Use the `Assets` panel in project mode to add files, insert image references, sort by name/size/usage, rename assets with reference rewriting, and remove assets with reference warnings.
+- Use the `Assets` panel in project mode to add files, insert image references at 25%, 50%, 100%, or a custom width, sort by name/size/usage, rename assets with reference rewriting, and remove assets with reference warnings.
+- Resize individual Markdown images with Slip image attributes, for example `![Diagram](assets/diagram.png){width=50%}` or `![Diagram](assets/diagram.png){width=420px}`.
+- Create two-column slide sections with:
+  ```markdown
+  :::columns 4:6
+  :::column
+  Left content
+
+  :::column
+  Right content
+  :::end
+  ```
+- Create basic text charts with fenced `slip-chart` blocks:
+  ````markdown
+  ```slip-chart
+  type: horizontal-bar
+  value-per-bar: 10
+  caption: "Bar Chart"
+  data: {"A": 30, "B": 50}
+  ```
+  ````
 - Large asset lists render lazily in batches with cached image thumbnails to keep the panel responsive.
 - Missing `assets/...` references are shown as non-blocking warnings and placeholders in preview.
-- Click `Auto Split` to review generated slide breaks before accepting.
+- Click `AI Tools > Auto Split` to review generated slide breaks before accepting. Auto Split only works on Markdown that is not already split into slides.
 - Click `Style` to add scoped slide CSS in a top-level `<style>` block. Use the Target / Property / Value helper to add heading, text, bullet, or page background/margin rules without writing CSS manually. Color properties show a color picker that writes the chosen HEX value into Value. You can clear all style rules or edit the CSS text directly.
 - Click `Present` and choose Mirror Mode or Presenter Mode.
 - In presentation mode, external website links open in a picture-in-picture web panel with open-in-new-tab and close controls. Some websites block embedding; use the arrow button to open those links directly.
@@ -135,7 +157,7 @@ The generated `dist/` directory is static-hosting ready. Vite is configured with
 
 - `index.html`: app shell, toolbar, dialogs, and presentation markup
 - `app.js`: editor orchestration, rendering, project state, and UI event wiring
-- `src/deck.js`: sample decks, slide sizing, deck parsing, Markdown rendering, KaTeX math, code highlighting, HTML escaping, and slide CSS scoping
+- `src/deck.js`: template-backed deck constants, slide sizing, deck parsing, Markdown rendering, KaTeX math, code highlighting, HTML escaping, and slide CSS scoping
 - `src/i18n.js`: English and Chinese UI translation table and language helper
 - `src/projectPackage.js`: V2 `.zip` project package build/read/validation helpers
 - `src/cloudAuth.js`: V3 OAuth provider setup, PKCE authorization, callback exchange, and session helpers
@@ -147,6 +169,7 @@ The generated `dist/` directory is static-hosting ready. Vite is configured with
 - `server/shareServer.js`: V4a local Node share API and static build server
 - `server/shareStore.js`: V4a filesystem share storage used by the local server
 - `styles.css`: app layout, slide themes, print rules, dialogs, and presentation styles
+- `templates/`: built-in Markdown templates for the sample deck, new deck, and Basic Chart examples
 - `tests/`: Playwright browser regressions split by version scope
 - `plan/`: product plans and completed version plans
 

@@ -6,7 +6,7 @@ Slip is a Vite-powered single-page Markdown slide editor:
 
 - `index.html` defines the app shell and presentation/dialog markup.
 - `app.js` contains editor setup, parsing, rendering, presentation modes, import/export, and UI event wiring.
-- `src/deck.js` contains reusable deck constants, slide parsing, Markdown rendering, KaTeX/code highlighting, HTML escaping, and scoped CSS helpers.
+- `src/deck.js` contains reusable deck constants imported from templates, slide parsing, Markdown rendering, KaTeX/code highlighting, HTML escaping, and scoped CSS helpers.
 - `src/cloudAuth.js` contains V3 cloud auth provider configuration, Google Identity Services token auth, Microsoft PKCE auth-start, callback exchange, and session helpers.
 - `src/cloudConnectors.js` contains the V3 provider-neutral cloud file connector contract, shared errors, and memory test connector.
 - `src/googleDriveConnector.js` contains the Google Drive implementation of the cloud connector contract.
@@ -18,6 +18,7 @@ Slip is a Vite-powered single-page Markdown slide editor:
 - `server/shareServer.js` contains the V4a local Node share API and static build server.
 - `server/shareStore.js` contains the V4a filesystem share storage adapter.
 - `styles.css` contains layout, slide themes, print rules, presentation styles, and dialogs.
+- `templates/` contains built-in Markdown templates, including the sample deck, new deck, and Basic Chart examples.
 - `plan/` contains product and version plans; `plan/v1_done.md`, `plan/v2_done.md`, `plan/v3_done.md`, `plan/v4_done.md`, and `plan/v4_split_done.md` record completed scopes.
 - `LOG.md` records completed work and dependencies. Update it whenever progressing the project.
 - `dist/` and `node_modules/` are generated and should not be edited manually.

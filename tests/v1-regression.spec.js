@@ -7,6 +7,14 @@ size: widescreen
 ---
 `;
 
+async function openAiToolsMenu(page) {
+  await page.locator("#ai-tools-menu-button").click();
+  if (!(await page.locator("#ai-tools-menu-options").isVisible())) {
+    await page.locator("#ai-tools-menu-button").click();
+  }
+  await expect(page.locator("#ai-tools-menu-options")).toBeVisible();
+}
+
 async function openDeck(page, markdown, expectedSlides) {
   await page.addInitScript((value) => {
     window.localStorage.setItem("slip.markdown", value);
@@ -175,6 +183,10 @@ Menu actions should be grouped.`, 1);
   await expect(page.locator(".toolbar-actions > *").nth(4)).toContainText("Import");
   await expect(page.locator(".toolbar-actions > *").nth(5)).toContainText("Export");
   await expect(page.locator(".toolbar-actions > *").nth(6)).toHaveText("|");
+  await expect(page.locator(".toolbar-actions > *").nth(7)).toHaveAttribute("id", "projectize");
+  await expect(page.locator(".toolbar-actions > *").nth(8)).toContainText("Insert");
+  await expect(page.locator(".toolbar-actions > *").nth(9)).toHaveAttribute("id", "custom-css-toggle");
+  await expect(page.locator(".toolbar-actions > *").nth(10)).toContainText("AI Tools");
 
   await page.locator("#import-menu-button").click();
   await expect(page.locator("#import-menu-options")).toBeVisible();
@@ -188,6 +200,67 @@ Menu actions should be grouped.`, 1);
   await expect(page.locator("#export-menu-options")).toContainText("Embedded (md)");
   await expect(page.locator("#export-menu-options")).toContainText("Package");
   await expect(page.locator("#export-menu-options")).toContainText("PDF");
+
+  await page.locator("#insert-menu-button").click();
+  await expect(page.locator("#insert-menu-options")).toBeVisible();
+  await expect(page.locator("#insert-menu-options")).toContainText("Two Columns");
+  await expect(page.locator("#insert-menu-options")).toContainText("Basic Chart");
+
+  await openAiToolsMenu(page);
+  await expect(page.locator("#ai-tools-menu-options")).toBeVisible();
+  await expect(page.locator("#ai-tools-menu-options")).toContainText("Prompt");
+  await expect(page.locator("#ai-tools-menu-options")).toContainText("Auto Split");
+});
+
+test("inserts and renders two column blocks", async ({ page }) => {
+  await openDeck(page, `${baseFrontmatter}
+
+# Columns
+
+Start.`, 1);
+
+  await page.locator("#insert-menu-button").click();
+  await page.locator("#insert-columns").click();
+  await page.locator("#columns-ratio").fill("3:4");
+  await page.locator("#columns-confirm").click();
+  await expect(page.locator("#columns-summary")).toContainText("must add up to 10");
+
+  await page.locator("#columns-ratio").fill("4:6");
+  await page.locator("#columns-confirm").click();
+  await expect(page.locator(".cm-content")).toContainText(":::columns 4:6");
+  await expect(page.locator(".preview .slip-columns")).toHaveCount(1);
+  await expect(page.locator(".preview .slip-column")).toHaveCount(2);
+});
+
+test("inserts and renders basic chart blocks", async ({ page }) => {
+  await openDeck(page, `${baseFrontmatter}
+
+# Charts
+
+Start.`, 1);
+
+  await page.locator("#insert-menu-button").click();
+  await page.locator("#insert-basic-chart").click();
+  await page.locator("#chart-kind").selectOption("bar");
+  await page.locator("#chart-direction").selectOption("vertical");
+  await page.locator("#chart-unit").fill("4");
+  await page.locator("#chart-confirm").click();
+  await expect(page.locator(".cm-content")).toContainText("type: vertical-bar");
+  await expect(page.locator(".cm-content")).toContainText("value-per-bar: 4");
+  await expect(page.locator(".preview .slip-chart")).toContainText("Bar Chart");
+  const chartText = await page.locator(".preview .slip-chart").textContent();
+  const chartLines = chartText.split("\n");
+  const overflowLine = chartLines.find((line) => line.includes("~"));
+  const topBarLine = chartLines.find((line) => line.startsWith(" 40 |"));
+  expect(overflowLine.indexOf("~")).toBe(topBarLine.indexOf("█"));
+
+  await page.locator("#insert-menu-button").click();
+  await page.locator("#insert-basic-chart").click();
+  await page.locator("#chart-kind").selectOption("custom");
+  await expect(page.locator("#chart-direction-field")).toBeHidden();
+  await expect(page.locator("#chart-unit-field")).toBeHidden();
+  await page.locator("#chart-confirm").click();
+  await expect(page.locator(".cm-content")).toContainText("Jan Feb Mar Apr May Jun");
 });
 
 test("switches UI language between English and Chinese", async ({ page }) => {
@@ -268,12 +341,17 @@ First section.
 
 Second section.`, 1);
 
+  await openAiToolsMenu(page);
   await page.locator("#auto-split").click();
   await expect(page.locator("#auto-split-dialog")).toBeVisible();
   await expect(page.locator("#auto-split-list li")).toHaveCount(2);
   await page.locator("#auto-split-accept").click();
   await expect(page.locator(".slide")).toHaveCount(2);
   await expect(page.locator("#status")).toHaveText("Auto Split applied: 2 slides.");
+
+  await openAiToolsMenu(page);
+  await page.locator("#auto-split").click();
+  await expect(page.locator("#status")).toHaveText("Auto Split only works for Markdown that is not split into slides yet.");
 });
 
 test("renders and navigates a 120 slide deck within the V1 budget", async ({ page }) => {

@@ -16,6 +16,15 @@ size: widescreen
 
 Details.`;
 
+async function openAiPrompt(page) {
+  await page.locator("#ai-tools-menu-button").click();
+  if (!(await page.locator("#ai-tools-menu-options").isVisible())) {
+    await page.locator("#ai-tools-menu-button").click();
+  }
+  await expect(page.locator("#ai-tools-menu-options")).toBeVisible();
+  await page.locator("#ai-tools").click();
+}
+
 test("generates and copies external AI prompts", async ({ page }) => {
   await page.addInitScript((markdown) => {
     window.localStorage.setItem("slip.markdown", markdown);
@@ -26,7 +35,7 @@ test("generates and copies external AI prompts", async ({ page }) => {
   }, deck);
 
   await page.goto("/");
-  await page.locator("#ai-tools").click();
+  await openAiPrompt(page);
   await expect(page.locator("#ai-tools-dialog")).toBeVisible();
   await expect(page.locator("#ai-tools-dialog")).toContainText("Slip does not send content to an AI service");
   await expect(page.locator("#ai-prompt-source")).not.toContainText("Selected text only");
@@ -62,7 +71,7 @@ test("generates and copies external AI prompts", async ({ page }) => {
   await expect(page.locator("#ai-generated-prompt")).toHaveValue(/Additional instruction: Keep terminology consistent/);
 
   await page.reload();
-  await page.locator("#ai-tools").click();
+  await openAiPrompt(page);
   await expect(page.locator("#ai-audience")).toHaveValue("technical");
   await expect(page.locator("#ai-custom-instruction")).toHaveValue("Keep terminology consistent.");
 
@@ -105,7 +114,7 @@ test("reviews and applies external AI output", async ({ page }) => {
   }, deck);
 
   await page.goto("/");
-  await page.locator("#ai-tools").click();
+  await openAiPrompt(page);
 
   const chattyResult = "Here is the deck:\n\n# Wrapped";
   await page.locator("#ai-result").fill(chattyResult);
@@ -130,7 +139,7 @@ test("reviews and applies external AI output", async ({ page }) => {
   await expect(page.locator(".cm-content")).toContainText("AI Result");
   await expect(page.locator("#status")).toHaveText("AI result applied to the editor.");
 
-  await page.locator("#ai-tools").click();
+  await openAiPrompt(page);
   await expect(page.locator("#ai-undo-apply")).toBeEnabled();
   await page.locator("#ai-undo-apply").click();
   await expect(page.locator(".cm-content")).toContainText("Current Deck");

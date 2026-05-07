@@ -126,6 +126,7 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     saveTimer: 0,
     previewKeys: new Map(),
     overflowSlides: new Set(),
+    columnImageFitSlides: new Set(),
     assetSort: "name",
     assetVisibleLimit: 60,
     assetThumbnailCache: new Map(),
@@ -325,6 +326,8 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     shareRevoke: document.getElementById("share-revoke"),
     shareCopyToEditor: document.getElementById("share-copy-to-editor"),
     aiTools: document.getElementById("ai-tools"),
+    aiToolsMenuButton: document.getElementById("ai-tools-menu-button"),
+    aiToolsMenuOptions: document.getElementById("ai-tools-menu-options"),
     aiToolsDialog: document.getElementById("ai-tools-dialog"),
     aiToolsClose: document.getElementById("ai-tools-close"),
     aiPromptMode: document.getElementById("ai-prompt-mode"),
@@ -346,6 +349,24 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     aiApplyResult: document.getElementById("ai-apply-result"),
     aiUndoApply: document.getElementById("ai-undo-apply"),
     autoSplit: document.getElementById("auto-split"),
+    insertMenuButton: document.getElementById("insert-menu-button"),
+    insertMenuOptions: document.getElementById("insert-menu-options"),
+    insertColumns: document.getElementById("insert-columns"),
+    insertBasicChart: document.getElementById("insert-basic-chart"),
+    columnsDialog: document.getElementById("columns-dialog"),
+    columnsSummary: document.getElementById("columns-summary"),
+    columnsRatio: document.getElementById("columns-ratio"),
+    columnsConfirm: document.getElementById("columns-confirm"),
+    columnsCancel: document.getElementById("columns-cancel"),
+    chartDialog: document.getElementById("chart-dialog"),
+    chartCancel: document.getElementById("chart-cancel"),
+    chartConfirm: document.getElementById("chart-confirm"),
+    chartKind: document.getElementById("chart-kind"),
+    chartDirectionField: document.getElementById("chart-direction-field"),
+    chartDirection: document.getElementById("chart-direction"),
+    chartUnitField: document.getElementById("chart-unit-field"),
+    chartUnitLabel: document.getElementById("chart-unit-label"),
+    chartUnit: document.getElementById("chart-unit"),
     customCssToggle: document.getElementById("custom-css-toggle"),
     customCssPanel: document.getElementById("custom-css-panel"),
     customCssEditor: document.getElementById("custom-css-editor"),
@@ -769,6 +790,7 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
 
   function detectSlideOverflow() {
     const nextOverflowSlides = new Set();
+    const nextColumnImageFitSlides = new Set();
     const frames = elements.preview.querySelectorAll(":scope > .slide-frame");
 
     frames.forEach((frame) => {
@@ -777,9 +799,13 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
       const hasOverflow = slideInner.scrollHeight > slideInner.clientHeight + 1 || slideInner.scrollWidth > slideInner.clientWidth + 1;
       frame.classList.toggle("has-overflow", hasOverflow);
       if (hasOverflow) nextOverflowSlides.add(frame.dataset.slideId);
+      frame.querySelectorAll(".slip-column img").forEach((image) => {
+        if (image.naturalWidth > image.clientWidth + 1) nextColumnImageFitSlides.add(frame.dataset.slideId);
+      });
     });
 
     state.overflowSlides = nextOverflowSlides;
+    state.columnImageFitSlides = nextColumnImageFitSlides;
     markOutlineOverflow();
     updateOverflowStatus();
   }
@@ -791,6 +817,14 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
   }
 
   function updateOverflowStatus() {
+    if (state.columnImageFitSlides.size) {
+      const imageFitIndexes = state.deck.slides
+        .map((slide, index) => state.columnImageFitSlides.has(slide.id) ? index + 1 : null)
+        .filter(Boolean);
+      elements.status.textContent = t("columnImageFitWarning", { slides: formatSlideList(imageFitIndexes) });
+      elements.status.classList.add("warning");
+      return;
+    }
     if (!state.overflowSlides.size) return;
     const overflowIndexes = state.deck.slides
       .map((slide, index) => state.overflowSlides.has(slide.id) ? index + 1 : null)
@@ -846,6 +880,15 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
             <button class="asset-icon-button" type="button" data-action="insert" aria-label="${escapeHtml(t("insert"))}" title="${escapeHtml(t("insert"))}">＋</button>
             <button class="asset-icon-button" type="button" data-action="rename" aria-label="${escapeHtml(t("rename"))}" title="${escapeHtml(t("rename"))}">✎</button>
             <button class="asset-icon-button asset-remove-button" type="button" data-action="remove" aria-label="${escapeHtml(t("remove"))}" title="${escapeHtml(t("remove"))}">×</button>
+          </div>
+          <div class="asset-insert-menu" hidden>
+            <button type="button" data-action="insert-sized" data-width="25%">${escapeHtml(t("imageSizeSmall"))}</button>
+            <button type="button" data-action="insert-sized" data-width="50%">${escapeHtml(t("imageSizeMedium"))}</button>
+            <button type="button" data-action="insert-sized" data-width="100%">${escapeHtml(t("imageSizeFull"))}</button>
+            <span class="asset-custom-insert">
+              <input class="asset-custom-width" type="text" placeholder="${escapeHtml(t("imageCustomWidth"))}" autocomplete="off">
+              <button type="button" data-action="insert-custom">${escapeHtml(t("add"))}</button>
+            </span>
           </div>
         </div>`;
       elements.assetList.appendChild(item);
@@ -1831,6 +1874,7 @@ ${message}
 
   function closeAiToolsDialog() {
     elements.aiToolsDialog.hidden = true;
+    closeToolbarMenus();
   }
 
   function getAiPromptContent() {
@@ -2012,6 +2056,9 @@ ${message}
     elements.importFile.disabled = state.sharedReadOnly;
     elements.importPackage.disabled = state.sharedReadOnly;
     elements.projectize.disabled = state.sharedReadOnly || state.project.mode === "project";
+    elements.insertMenuButton.disabled = state.sharedReadOnly;
+    elements.insertColumns.disabled = state.sharedReadOnly;
+    elements.insertBasicChart.disabled = state.sharedReadOnly;
     elements.autoSplit.disabled = state.sharedReadOnly;
     elements.customCssToggle.disabled = state.sharedReadOnly;
     elements.cloudMenuButton.disabled = state.sharedReadOnly;
@@ -2557,6 +2604,82 @@ ${message}
     setEditorValue(`---\n${key}: ${value}\n---\n\n${markdown}`);
   }
 
+  function parseColumnRatio(value) {
+    const match = value.trim().match(/^(\d+)\s*:\s*(\d+)$/);
+    if (!match) return null;
+    const left = Number(match[1]);
+    const right = Number(match[2]);
+    if (left <= 0 || right <= 0 || left + right !== 10) return null;
+    return `${left}:${right}`;
+  }
+
+  function openColumnsDialog() {
+    closeToolbarMenus();
+    elements.columnsRatio.value = "5:5";
+    elements.columnsSummary.textContent = t("columnsSummary");
+    elements.columnsSummary.classList.remove("warning");
+    elements.columnsDialog.hidden = false;
+    elements.columnsRatio.focus();
+    elements.columnsRatio.select();
+  }
+
+  function closeColumnsDialog() {
+    elements.columnsDialog.hidden = true;
+  }
+
+  function insertColumnsBlock() {
+    const ratio = parseColumnRatio(elements.columnsRatio.value);
+    if (!ratio) {
+      elements.columnsSummary.textContent = t("columnsRatioInvalid");
+      elements.columnsSummary.classList.add("warning");
+      elements.columnsRatio.focus();
+      return;
+    }
+    insertAtCursor(`\n:::columns ${ratio}\n:::column\nLeft column content.\n\n:::column\nRight column content.\n:::end\n`);
+    closeColumnsDialog();
+  }
+
+  function openChartDialog() {
+    closeToolbarMenus();
+    elements.chartKind.value = "bar";
+    elements.chartDirection.value = "horizontal";
+    elements.chartUnit.value = "10";
+    renderChartDialog();
+    elements.chartDialog.hidden = false;
+  }
+
+  function closeChartDialog() {
+    elements.chartDialog.hidden = true;
+  }
+
+  function renderChartDialog() {
+    const kind = elements.chartKind.value;
+    const isCustom = kind === "custom";
+    const isProgress = kind === "progress";
+    elements.chartDirectionField.hidden = isCustom || isProgress;
+    elements.chartUnitField.hidden = isCustom;
+    elements.chartUnitLabel.textContent = kind === "dot" ? t("valuePerPoint") : t("valuePerBar");
+  }
+
+  function insertBasicChartBlock() {
+    const kind = elements.chartKind.value;
+    if (kind === "custom") {
+      insertAtCursor(`\n\`\`\`text\n 80 |              ●       ●\n 70 |              |       |\n 60 |          ●   |   ●   |\n 50 |          |   |   |   |\n 40 |      ●   |   |   |   |\n 30 |      |   |   |   |   |\n 20 |  ●   |   |   |   |   |\n    +----------------------------\n      Jan Feb Mar Apr May Jun\n\`\`\`\n`);
+      closeChartDialog();
+      return;
+    }
+
+    const unit = Math.max(1, Number(elements.chartUnit.value) || 10);
+    const direction = elements.chartDirection.value;
+    const type = kind === "progress"
+      ? "progress-bar"
+      : `${direction}-${kind === "dot" ? "point" : "bar"}`;
+    const unitKey = kind === "dot" ? "value-per-point" : "value-per-bar";
+    const caption = kind === "dot" ? "Dot Chart" : kind === "progress" ? "Progress" : "Bar Chart";
+    insertAtCursor(`\n\`\`\`slip-chart\ntype: ${type}\n${unitKey}: ${unit}\ncaption: "${caption}"\ndata: {"A": 30, "B": 50}\n\`\`\`\n`);
+    closeChartDialog();
+  }
+
   function autoSplitMarkdown() {
     const markdown = getEditorValue();
     const draft = createAutoSplitDraft(markdown);
@@ -2936,13 +3059,48 @@ ${message}
     const asset = state.project.assets.get(item?.dataset.assetPath || "");
     if (!asset) return;
 
-    if (button.dataset.action === "insert") insertAssetReference(asset);
+    if (button.dataset.action === "insert") toggleAssetInsertMenu(item);
+    if (button.dataset.action === "insert-sized") insertAssetReference(asset, button.dataset.width || "");
+    if (button.dataset.action === "insert-custom") {
+      const width = normalizeImageWidth(item.querySelector(".asset-custom-width")?.value || "");
+      if (width) insertAssetReference(asset, width);
+    }
     if (button.dataset.action === "rename") startInlineAssetRename(asset, item);
     if (button.dataset.action === "remove") removeAsset(asset);
   }
 
-  function insertAssetReference(asset) {
-    insertAtCursor(`\n![${asset.filename}](${asset.path})\n`);
+  function handleAssetListKeydown(event) {
+    if (event.key !== "Enter" || !event.target.classList.contains("asset-custom-width")) return;
+    const item = event.target.closest(".asset-item");
+    const asset = state.project.assets.get(item?.dataset.assetPath || "");
+    const width = normalizeImageWidth(event.target.value || "");
+    if (!asset || !width) return;
+    event.preventDefault();
+    insertAssetReference(asset, width);
+  }
+
+  function toggleAssetInsertMenu(item) {
+    const menu = item?.querySelector(".asset-insert-menu");
+    if (!menu) return;
+    clearTimeout(updateTimer);
+    elements.assetList.querySelectorAll(".asset-insert-menu").forEach((otherMenu) => {
+      if (otherMenu !== menu) otherMenu.hidden = true;
+    });
+    menu.hidden = !menu.hidden;
+    if (!menu.hidden) menu.querySelector(".asset-custom-width")?.focus();
+  }
+
+  function normalizeImageWidth(value) {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (/^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed}px`;
+    if (/^\d+(\.\d+)?(px|%)$/i.test(trimmed)) return trimmed;
+    return "";
+  }
+
+  function insertAssetReference(asset, width = "") {
+    const sizeAttribute = width ? `{width=${width}}` : "";
+    insertAtCursor(`\n![${asset.filename}](${asset.path})${sizeAttribute}\n`);
   }
 
   function startInlineAssetRename(asset, item) {
@@ -3077,6 +3235,8 @@ ${message}
     setMenuOpen(elements.importMenuButton, elements.importMenuOptions, false);
     setMenuOpen(elements.exportMenuButton, elements.exportMenuOptions, false);
     setMenuOpen(elements.cloudMenuButton, elements.cloudMenuOptions, false);
+    setMenuOpen(elements.insertMenuButton, elements.insertMenuOptions, false);
+    setMenuOpen(elements.aiToolsMenuButton, elements.aiToolsMenuOptions, false);
     setMenuOpen(elements.presentMenuButton, elements.presentMenuOptions, false);
   }
 
@@ -3094,6 +3254,7 @@ ${message}
       scrollIntoView: true,
     });
     editorView.focus();
+    clearTimeout(updateTimer);
     update();
   }
 
@@ -3128,7 +3289,18 @@ ${message}
   elements.shareDialog.addEventListener("click", (event) => {
     if (event.target === elements.shareDialog) closeShareDialog();
   });
-  elements.aiTools.addEventListener("click", openAiToolsDialog);
+  elements.insertMenuButton.addEventListener("click", () => {
+    toggleToolbarMenu(elements.insertMenuButton, elements.insertMenuOptions);
+  });
+  elements.insertColumns.addEventListener("click", openColumnsDialog);
+  elements.insertBasicChart.addEventListener("click", openChartDialog);
+  elements.aiToolsMenuButton.addEventListener("click", () => {
+    toggleToolbarMenu(elements.aiToolsMenuButton, elements.aiToolsMenuOptions);
+  });
+  elements.aiTools.addEventListener("click", () => {
+    closeToolbarMenus();
+    openAiToolsDialog();
+  });
   elements.aiToolsClose.addEventListener("click", closeAiToolsDialog);
   elements.aiPromptMode.addEventListener("change", (event) => {
     state.aiPromptMode = event.target.value;
@@ -3162,6 +3334,20 @@ ${message}
   elements.newDeckDialog.addEventListener("click", (event) => {
     if (event.target === elements.newDeckDialog) closeNewDeckDialog();
   });
+  elements.columnsConfirm.addEventListener("click", insertColumnsBlock);
+  elements.columnsCancel.addEventListener("click", closeColumnsDialog);
+  elements.columnsRatio.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") insertColumnsBlock();
+  });
+  elements.columnsDialog.addEventListener("click", (event) => {
+    if (event.target === elements.columnsDialog) closeColumnsDialog();
+  });
+  elements.chartKind.addEventListener("change", renderChartDialog);
+  elements.chartConfirm.addEventListener("click", insertBasicChartBlock);
+  elements.chartCancel.addEventListener("click", closeChartDialog);
+  elements.chartDialog.addEventListener("click", (event) => {
+    if (event.target === elements.chartDialog) closeChartDialog();
+  });
   elements.importFile.addEventListener("change", (event) => {
     const file = event.target.files[0];
     if (file) importFile(file);
@@ -3179,6 +3365,7 @@ ${message}
     event.target.value = "";
   });
   elements.assetList.addEventListener("click", handleAssetAction);
+  elements.assetList.addEventListener("keydown", handleAssetListKeydown);
   elements.assetSort.addEventListener("change", (event) => {
     state.assetSort = event.target.value;
     resetAssetPanelPaging();
@@ -3258,7 +3445,10 @@ ${message}
   elements.cloudConflictDialog.addEventListener("click", (event) => {
     if (event.target === elements.cloudConflictDialog) closeCloudConflictDialog();
   });
-  elements.autoSplit.addEventListener("click", autoSplitMarkdown);
+  elements.autoSplit.addEventListener("click", () => {
+    closeToolbarMenus();
+    autoSplitMarkdown();
+  });
   elements.autoSplitAccept.addEventListener("click", acceptAutoSplit);
   elements.autoSplitCancel.addEventListener("click", closeAutoSplitDialog);
   elements.autoSplitDialog.addEventListener("click", (event) => {
@@ -3343,6 +3533,8 @@ ${message}
   });
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !state.presentationOpen && !elements.newDeckDialog.hidden) closeNewDeckDialog();
+    if (event.key === "Escape" && !state.presentationOpen && !elements.columnsDialog.hidden) closeColumnsDialog();
+    if (event.key === "Escape" && !state.presentationOpen && !elements.chartDialog.hidden) closeChartDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.projectizeDialog.hidden) closeProjectizeDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.embeddedExportDialog.hidden) closeEmbeddedExportDialog();
     if (event.key === "Escape" && !state.presentationOpen && !elements.shareDialog.hidden) closeShareDialog();

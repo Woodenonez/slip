@@ -214,8 +214,16 @@ size: widescreen
   await expect(page.locator('[data-asset-path="assets/a.svg"]')).toContainText("used 0 times");
 
   await page.locator('[data-asset-path="assets/a.svg"] [data-action="insert"]').click();
+  await page.locator('[data-asset-path="assets/a.svg"] [data-action="insert-sized"][data-width="50%"]').click();
+  await expect(page.locator(".cm-content")).toContainText("![a.svg](assets/a.svg){width=50%}");
+  await expect(page.getByRole("img", { name: "a.svg" })).toHaveAttribute("style", /width: 50%;/);
   await expect(page.locator('[data-asset-path="assets/a.svg"]')).toContainText("used 1 time");
   await expect(page.getByRole("img", { name: "a.svg" })).toHaveAttribute("src", /^data:image\/svg\+xml;base64,/);
+
+  await page.locator('[data-asset-path="assets/b.svg"] [data-action="insert"]').click();
+  await page.locator('[data-asset-path="assets/b.svg"] .asset-custom-width').fill("320");
+  await page.locator('[data-asset-path="assets/b.svg"] [data-action="insert-custom"]').click();
+  await expect(page.locator(".cm-content")).toContainText("![b.svg](assets/b.svg){width=320px}");
 
   await page.locator('[data-asset-path="assets/a.svg"] [data-action="rename"]').click();
   await page.locator('[data-asset-path="assets/a.svg"] .asset-name-input').fill("renamed-a.svg");
@@ -261,6 +269,7 @@ size: widescreen
   await page.locator(".cm-content").click();
   await page.keyboard.press(process.platform === "darwin" ? "Meta+End" : "Control+End");
   await page.locator('[data-asset-path="assets/package.svg"] [data-action="insert"]').click();
+  await page.locator('[data-asset-path="assets/package.svg"] [data-action="insert-sized"][data-width="100%"]').click();
 
   const downloadPromise = page.waitForEvent("download");
   await page.locator("#export-menu-button").click();
@@ -308,6 +317,7 @@ size: widescreen
   await page.locator(".cm-content").click();
   await page.keyboard.press(process.platform === "darwin" ? "Meta+End" : "Control+End");
   await page.locator('[data-asset-path="assets/inline.svg"] [data-action="insert"]').click();
+  await page.locator('[data-asset-path="assets/inline.svg"] [data-action="insert-sized"][data-width="100%"]').click();
 
   const downloadPromise = page.waitForEvent("download");
   await page.locator("#export-menu-button").click();
@@ -353,6 +363,7 @@ size: widescreen
   await page.locator(".cm-content").click();
   await page.keyboard.press(process.platform === "darwin" ? "Meta+End" : "Control+End");
   await page.locator('[data-asset-path="assets/oversized.svg"] [data-action="insert"]').click();
+  await page.locator('[data-asset-path="assets/oversized.svg"] [data-action="insert-sized"][data-width="100%"]').click();
 
   await page.locator("#export-menu-button").click();
   await page.locator("#export-self-contained-md").click();
@@ -394,6 +405,7 @@ size: widescreen
   await page.keyboard.press(process.platform === "darwin" ? "Meta+End" : "Control+End");
   for (let index = 1; index <= 5; index += 1) {
     await page.locator(`[data-asset-path="assets/total-${index}.svg"] [data-action="insert"]`).click();
+    await page.locator(`[data-asset-path="assets/total-${index}.svg"] [data-action="insert-sized"][data-width="100%"]`).click();
   }
 
   await page.locator("#export-menu-button").click();

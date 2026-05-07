@@ -54,9 +54,21 @@
           </div>
           <span class="toolbar-divider" aria-hidden="true">|</span>
           <button id="projectize" type="button" data-i18n="projectize">Projectize</button>
-          <button id="auto-split" type="button" data-i18n="autoSplit">Auto Split</button>
-          <button id="ai-tools" type="button" data-i18n="aiTools">AI Tools</button>
+          <div class="toolbar-menu">
+            <button id="insert-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false" data-i18n="insert">Insert</button>
+            <div id="insert-menu-options" class="toolbar-menu-options" hidden>
+              <button id="insert-columns" type="button" data-i18n="twoColumns">Two Columns</button>
+              <button id="insert-basic-chart" type="button" data-i18n="basicChart">Basic Chart</button>
+            </div>
+          </div>
           <button id="custom-css-toggle" type="button" data-i18n="style">Style</button>
+          <div class="toolbar-menu">
+            <button id="ai-tools-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false" data-i18n="aiTools">AI Tools</button>
+            <div id="ai-tools-menu-options" class="toolbar-menu-options" hidden>
+              <button id="ai-tools" type="button" data-i18n="prompt">Prompt</button>
+              <button id="auto-split" type="button" data-i18n="autoSplit">Auto Split</button>
+            </div>
+          </div>
           <span class="toolbar-divider" aria-hidden="true">|</span>
           <div class="toolbar-menu">
             <button id="present-menu-button" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false" data-i18n="present">Present</button>
@@ -204,6 +216,59 @@
         </div>
         <footer class="dialog-footer">
           <button id="new-deck-confirm" type="button" data-i18n="confirm">Confirm</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="columns-dialog" class="dialog-backdrop" aria-label="Insert two columns" hidden>
+      <div class="dialog confirm-dialog">
+        <header class="dialog-header">
+          <h2 data-i18n="twoColumns">Two Columns</h2>
+          <button id="columns-cancel" type="button" aria-label="Cancel two columns" data-i18n="cancel">Cancel</button>
+        </header>
+        <div class="dialog-body">
+          <p id="columns-summary" class="dialog-summary" data-i18n="columnsSummary">Choose a column ratio. The two numbers must add up to 10.</p>
+          <label class="dialog-field">
+            <span data-i18n="columnRatio">Ratio</span>
+            <input id="columns-ratio" type="text" value="5:5" autocomplete="off">
+          </label>
+        </div>
+        <footer class="dialog-footer">
+          <button id="columns-confirm" type="button" data-i18n="insert">Insert</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="chart-dialog" class="dialog-backdrop" aria-label="Insert basic chart" hidden>
+      <div class="dialog confirm-dialog">
+        <header class="dialog-header">
+          <h2 data-i18n="basicChart">Basic Chart</h2>
+          <button id="chart-cancel" type="button" aria-label="Cancel basic chart" data-i18n="cancel">Cancel</button>
+        </header>
+        <div class="dialog-body">
+          <label class="dialog-field">
+            <span data-i18n="chartKind">Chart</span>
+            <select id="chart-kind">
+              <option value="bar" data-i18n="barChart">Bar chart</option>
+              <option value="dot" data-i18n="dotChart">Dot chart</option>
+              <option value="progress" data-i18n="progressBar">Progress bar</option>
+              <option value="custom" data-i18n="customChart">Custom chart</option>
+            </select>
+          </label>
+          <label id="chart-direction-field" class="dialog-field">
+            <span data-i18n="chartDirection">Direction</span>
+            <select id="chart-direction">
+              <option value="horizontal" data-i18n="horizontal">Horizontal</option>
+              <option value="vertical" data-i18n="vertical">Vertical</option>
+            </select>
+          </label>
+          <label id="chart-unit-field" class="dialog-field">
+            <span id="chart-unit-label" data-i18n="valuePerBar">Value per bar</span>
+            <input id="chart-unit" type="number" min="1" value="10">
+          </label>
+        </div>
+        <footer class="dialog-footer">
+          <button id="chart-confirm" type="button" data-i18n="insert">Insert</button>
         </footer>
       </div>
     </section>

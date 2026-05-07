@@ -10,6 +10,8 @@ import python from "highlight.js/lib/languages/python";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import "highlight.js/styles/github.css";
+import sampleDeckTemplate from "../templates/sample_deck.md?raw";
+import newDeckTemplate from "../templates/new_deck.md?raw";
 
 hljs.registerLanguage("bash", bash);
 hljs.registerLanguage("sh", bash);
@@ -26,79 +28,8 @@ hljs.registerLanguage("typescript", typescript);
 hljs.registerLanguage("ts", typescript);
 hljs.registerLanguage("xml", xml);
 
-export const sampleMarkdown = `---
-title: Slip Demo
-theme: clean
-size: widescreen
----
-
-<style>
-h1 {
-  letter-spacing: 0.02em;
-}
-</style>
-
-# Slip
-
-Browser-native Markdown slides with reliable print export.
-
-- Write Markdown
-- Preview fixed-size slides
-- Print or save as PDF
-
-???
-Speaker notes are written after three question marks.
-
----
-
-## Images and code
-
-![Placeholder](data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 360'%3E%3Crect width='900' height='360' fill='%23e5f2ef'/%3E%3Ctext x='450' y='190' text-anchor='middle' font-family='Arial' font-size='48' fill='%230f554c'%3EDrop images into the editor%3C/text%3E%3C/svg%3E)
-
-\`\`\`js
-const deck = parseSlides(markdown);
-render(deck);
-\`\`\`
-
-Inline math works: $E = mc^2$
-
-$$
-\\int_0^1 x^2\\,dx = \\frac{1}{3}
-$$
-
----
-
-## Export
-
-Use **Export > PDF** to open the browser print dialog.
-
-The preview is designed as a print page first, then scaled for screen reading.
-`;
-
-export const newDeckMarkdown = `---
-title: New Deck
-theme: clean
-size: widescreen
----
-
-# Title Slide
-
-Start with the main idea.
-
----
-
-## Key Points
-
-- First point
-- Second point
-- Third point
-
----
-
-## Closing
-
-End with the takeaway.
-`;
+export const sampleMarkdown = sampleDeckTemplate;
+export const newDeckMarkdown = newDeckTemplate;
 
 export const slideSizes = {
   widescreen: {
@@ -193,13 +124,14 @@ export function renderMarkdown(markdown, options = {}) {
     list = null;
   }
 
-  lines.forEach((rawLine) => {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const rawLine = lines[lineIndex];
     const line = rawLine.replace(/\t/g, "  ");
 
     if (/^\s*```/.test(line)) {
       if (inMath) {
         mathBuffer.push(rawLine);
-        return;
+        continue;
       }
       if (inCode) {
         html += codeBlockHtml(codeLang, codeBuffer.join("\n"));
@@ -212,13 +144,13 @@ export function renderMarkdown(markdown, options = {}) {
         inCode = true;
         codeLang = line.replace(/^\s*```/, "").trim();
       }
-      return;
+      continue;
     }
 
     if (/^\s*\$\$\s*$/.test(line)) {
       if (inCode) {
         codeBuffer.push(rawLine);
-        return;
+        continue;
       }
       if (inMath) {
         html += mathBlockHtml(mathBuffer.join("\n"));
@@ -229,23 +161,33 @@ export function renderMarkdown(markdown, options = {}) {
         flushList();
         inMath = true;
       }
-      return;
+      continue;
     }
 
     if (inCode) {
       codeBuffer.push(rawLine);
-      return;
+      continue;
     }
 
     if (inMath) {
       mathBuffer.push(rawLine);
-      return;
+      continue;
     }
 
     if (!line.trim()) {
       flushParagraph();
       flushList();
-      return;
+      continue;
+    }
+
+    const columns = line.match(/^:::columns\s+(\d+)\s*:\s*(\d+)\s*$/);
+    if (columns) {
+      flushParagraph();
+      flushList();
+      const parsedColumns = parseColumnsBlock(lines, lineIndex, Number(columns[1]), Number(columns[2]), options);
+      html += parsedColumns.html;
+      lineIndex = parsedColumns.endIndex;
+      continue;
     }
 
     const heading = line.match(/^(#{1,3})\s+(.+)$/);
@@ -254,7 +196,7 @@ export function renderMarkdown(markdown, options = {}) {
       flushList();
       const level = heading[1].length;
       html += `<h${level}>${inlineMarkdown(heading[2], options)}</h${level}>`;
-      return;
+      continue;
     }
 
     const unordered = line.match(/^\s*[-*]\s+(.+)$/);
@@ -267,7 +209,7 @@ export function renderMarkdown(markdown, options = {}) {
         list = { type, items: [] };
       }
       list.items.push((unordered || ordered)[1]);
-      return;
+      continue;
     }
 
     const quote = line.match(/^>\s+(.+)$/);
@@ -275,11 +217,11 @@ export function renderMarkdown(markdown, options = {}) {
       flushParagraph();
       flushList();
       html += `<blockquote>${inlineMarkdown(quote[1], options)}</blockquote>`;
-      return;
+      continue;
     }
 
     paragraph.push(line.trim());
-  });
+  }
 
   if (inCode) {
     html += codeBlockHtml(codeLang, codeBuffer.join("\n"));
@@ -290,6 +232,45 @@ export function renderMarkdown(markdown, options = {}) {
   flushParagraph();
   flushList();
   return html || "<p></p>";
+}
+
+function parseColumnsBlock(lines, startIndex, left, right, options) {
+  const invalidRatio = left + right !== 10 || left <= 0 || right <= 0;
+  const columns = ["", ""];
+  let currentColumn = -1;
+  let endIndex = startIndex;
+
+  for (let index = startIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index].trim();
+    if (line === ":::end") {
+      endIndex = index;
+      break;
+    }
+    if (line === ":::column") {
+      currentColumn += 1;
+      continue;
+    }
+    if (currentColumn >= 0 && currentColumn < 2) {
+      columns[currentColumn] += `${lines[index]}\n`;
+    }
+  }
+
+  if (endIndex === startIndex || invalidRatio || currentColumn < 1) {
+    return {
+      endIndex,
+      html: `<div class="slip-columns-warning">${escapeHtml("Invalid columns block: ratio must add up to 10 and include two columns.")}</div>`,
+    };
+  }
+
+  const leftHtml = renderMarkdown(columns[0].trim(), options);
+  const rightHtml = renderMarkdown(columns[1].trim(), options);
+  return {
+    endIndex,
+    html: `<div class="slip-columns" style="grid-template-columns: ${left}fr ${right}fr;">
+      <div class="slip-column">${leftHtml}</div>
+      <div class="slip-column">${rightHtml}</div>
+    </div>`,
+  };
 }
 
 export function scopeCustomCss(css) {
@@ -416,9 +397,98 @@ export function extractTitle(markdown) {
 
 function codeBlockHtml(language, code) {
   const lang = language.trim();
+  if (lang === "slip-chart") return slipChartHtml(code);
   const label = lang ? `<span class="code-lang">${escapeHtml(lang)}</span>` : "";
   const highlighted = highlightCode(lang, code);
   return `<pre>${label}<code class="hljs" data-lang="${escapeHtml(lang)}">${highlighted}</code></pre>`;
+}
+
+function slipChartHtml(source) {
+  const chart = parseSlipChart(source);
+  const rendered = renderSlipChart(chart);
+  return `<pre class="slip-chart"><code>${escapeHtml(rendered)}</code></pre>`;
+}
+
+function parseSlipChart(source) {
+  const chart = { type: "horizontal-bar", caption: "", unit: 10, data: {} };
+  source.split("\n").forEach((line) => {
+    const match = line.match(/^([A-Za-z-]+):\s*(.+)$/);
+    if (!match) return;
+    const key = match[1].trim();
+    const value = match[2].trim();
+    if (key === "type") chart.type = value;
+    if (key === "caption") chart.caption = value.replace(/^["']|["']$/g, "");
+    if (key === "value-per-bar" || key === "value-per-point") chart.unit = Math.max(1, Number(value) || 10);
+    if (key === "data") {
+      try {
+        chart.data = JSON.parse(value);
+      } catch {
+        chart.data = {};
+      }
+    }
+  });
+  return chart;
+}
+
+function renderSlipChart(chart) {
+  if (chart.type === "vertical-bar" || chart.type === "vertical-point") return renderVerticalChart(chart);
+  if (chart.type === "horizontal-point") return renderHorizontalChart(chart, "•", "point");
+  if (chart.type === "progress-bar") return renderProgressChart(chart);
+  return renderHorizontalChart(chart, "█", "bar");
+}
+
+function chartCaption(chart) {
+  return chart.caption ? `${chart.caption}\n` : "";
+}
+
+function chartEntries(data) {
+  return Object.entries(data)
+    .map(([label, value]) => [String(label), Number(value) || 0]);
+}
+
+function renderHorizontalChart(chart, mark, unitName) {
+  const maxMarks = unitName === "point" ? 50 : 50;
+  const lines = chartEntries(chart.data).map(([label, value]) => {
+    const count = Math.floor(value / chart.unit);
+    const clipped = count > maxMarks;
+    const marks = mark.repeat(Math.max(0, Math.min(count, maxMarks))) + (clipped ? "~" : "");
+    return `${label.padStart(3)} | ${marks} ${value}`;
+  });
+  return `${chartCaption(chart)}${lines.join("\n")}`.trimEnd();
+}
+
+function renderProgressChart(chart) {
+  const lines = chartEntries(chart.data).map(([label, value]) => {
+    const percent = Math.max(0, Math.min(100, value));
+    const filled = Math.floor(percent / chart.unit);
+    const empty = Math.max(0, Math.floor(100 / chart.unit) - filled);
+    return `${label.padEnd(8)} [${"█".repeat(filled)}${"░".repeat(empty)}] ${percent}%`;
+  });
+  return `${chartCaption(chart)}${lines.join("\n")}`.trimEnd();
+}
+
+function renderVerticalChart(chart) {
+  const mark = chart.type === "vertical-point" ? "•" : "█";
+  const entries = chartEntries(chart.data).map(([label, value]) => ({
+    label: label.slice(0, 2).padEnd(2),
+    value,
+    count: Math.floor(value / chart.unit),
+  }));
+  const maxRows = 10;
+  const clipped = entries.some((entry) => entry.count > maxRows);
+  const height = Math.min(maxRows, Math.max(1, ...entries.map((entry) => entry.count)));
+  const lines = [];
+  if (clipped) {
+    lines.push(`      ${entries.map((entry) => entry.count > maxRows ? "~ " : "  ").join(" ")}`);
+  }
+  for (let row = height; row >= 1; row -= 1) {
+    const valueLabel = String(row * chart.unit).padStart(3);
+    const cells = entries.map((entry) => entry.count >= row ? `${mark} ` : "  ").join(" ");
+    lines.push(`${valueLabel} | ${cells}`);
+  }
+  lines.push(`    +${"-".repeat(Math.max(1, entries.length * 3))}`);
+  lines.push(`      ${entries.map((entry) => entry.label).join(" ")}`);
+  return `${chartCaption(chart)}${lines.join("\n")}`.trimEnd();
 }
 
 function highlightCode(language, code) {
@@ -445,7 +515,7 @@ function inlineMarkdown(text, options) {
     codeSpans.push(`<code>${code}</code>`);
     return token;
   });
-  output = output.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt, source) => {
+  output = output.replace(/!\[([^\]]*)\]\(([^)]+)\)(\{[^}]*\})?/g, (_match, alt, source, attributes = "") => {
     const rawSource = unescapeHtml(source);
     const resolvedSource = options.resolveAssetUrl
       ? options.resolveAssetUrl(rawSource)
@@ -453,7 +523,9 @@ function inlineMarkdown(text, options) {
     if (!resolvedSource) {
       return options.renderMissingAsset?.(rawSource) || "";
     }
-    return `<img alt="${escapeHtml(unescapeHtml(alt))}" src="${escapeHtml(resolvedSource)}">`;
+    const width = parseImageWidthAttribute(unescapeHtml(attributes));
+    const style = width ? ` style="width: ${escapeHtml(width)};"` : "";
+    return `<img alt="${escapeHtml(unescapeHtml(alt))}" src="${escapeHtml(resolvedSource)}"${style}>`;
   });
   output = output.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
   output = output.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
@@ -463,6 +535,14 @@ function inlineMarkdown(text, options) {
     output = output.replace(`@@CODE${index}@@`, code);
   });
   return output;
+}
+
+function parseImageWidthAttribute(attributes) {
+  const match = attributes.match(/\bwidth\s*=\s*([^\s}]+)/i);
+  if (!match) return "";
+  const value = match[1].trim().replace(/^["']|["']$/g, "");
+  if (/^\d+(\.\d+)?(px|%)$/i.test(value)) return value;
+  return "";
 }
 
 function renderMath(source, displayMode) {
@@ -480,7 +560,7 @@ function renderMath(source, displayMode) {
 
 function stripMarkdown(text) {
   return text
-    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]+\)(\{[^}]*\})?/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/[*_`>#-]/g, "")
     .trim();
