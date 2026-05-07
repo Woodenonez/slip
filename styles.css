@@ -422,6 +422,38 @@ button:disabled {
   background: #fff1f2;
 }
 
+.asset-insert-menu {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  align-items: center;
+}
+
+.asset-insert-menu[hidden] {
+  display: none;
+}
+
+.asset-insert-menu button {
+  min-height: 28px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+
+.asset-custom-insert {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.asset-custom-width {
+  min-width: 0;
+  min-height: 28px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  padding: 0 7px;
+}
+
 .asset-show-more {
   width: 100%;
   min-height: 34px;
@@ -694,6 +726,10 @@ button:disabled {
   gap: 6px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.dialog-field[hidden] {
+  display: none;
 }
 
 .dialog-field input,
@@ -1030,6 +1066,40 @@ button:disabled {
 
 .slide-inner h3 {
   font-size: 42px;
+}
+
+.slip-columns {
+  display: grid;
+  gap: 28px;
+  align-items: start;
+  margin: 0 0 24px;
+}
+
+.slip-column {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.slip-column > :last-child {
+  margin-bottom: 0;
+}
+
+.slip-column img {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.slip-columns-warning {
+  margin: 0 0 24px;
+  padding: 10px 12px;
+  border-left: 4px solid var(--danger);
+  background: #fff1f2;
+  color: var(--danger);
+  font-size: 24px;
+}
+
+.slip-chart {
+  white-space: pre;
 }
 
 .slide-inner p,

@@ -475,63 +475,62 @@ V5 started on 2026-05-06. Work is interactive; there is no written V5 plan yet.
 
 ## 2026-05-06 (1)
 
-- Added presentation-mode external website handling: clicking an `http` or `https` Markdown link now opens a picture-in-picture web panel instead of immediately opening a new tab.
-- Added open-in-new-tab and close controls to the web panel, plus Escape-to-close behavior when the panel is visible.
-- Added V5 Playwright coverage for opening the panel, using the arrow fallback, and closing it.
-- Updated README and AGENTS with V5 testing and presentation-link behavior.
+- Started V5 with presentation-mode external link handling: links open in a picture-in-picture web panel with open-in-new-tab, close, and Escape behavior.
+- Renamed the CSS action to `Style` and added a beginner-friendly rule builder with Target, Property, Value, Add, and Clear controls.
+- Supported heading/text size, color, and letter-spacing rules with English/Chinese labels, README/AGENTS notes, and V5 browser coverage.
 - No new runtime or development dependencies were introduced.
 
 ## 2026-05-06 (2)
 
-- Added a visual CSS rule builder below the Slide CSS panel header with Target, Property, Value, and Add controls.
-- Supported beginner-friendly targets for Heading 1, Heading 2, Heading 3, and regular text, mapped to `h1`, `h2`, `h3`, and `p`.
-- Supported size, color, and letter-spacing rules, with numeric size/spacing values normalized to `px`.
-- Added English and Chinese labels for the CSS builder and V5 browser coverage for generated CSS rules.
+- Expanded Style controls with a green Present button, Bullet and Page targets, page background/margin rules, Custom theme switching, and scoped `:page`/`:page-content` CSS support.
+- Fixed Page background behavior so predefined themes remove generated page background CSS and become visible again.
+- Added a native color picker for text and page color properties, plus README and V5 browser coverage for these style flows.
 - No new runtime or development dependencies were introduced.
 
 ## 2026-05-06 (3)
 
-- Renamed the top toolbar CSS action to `Style`.
-- Added a `Clear` button before `Close` in the Slide CSS panel header.
-- Wired Clear to remove the stored top-level style block and update the preview through the existing custom CSS pipeline.
-- Expanded V5 browser coverage for clearing generated style rules.
+- Improved project asset handling with compact icon actions, inline asset rename, empty-name cancellation, and reference rewriting.
+- Added image sizing syntax, including `![alt](path){width=50%}` and `![alt](path){width=420px}`.
+- Changed asset Insert into a size chooser with 25%, 50%, 100%, and custom width options.
+- Updated README and V2 browser coverage for asset actions, inline rename, and inserted image sizing.
 - No new runtime or development dependencies were introduced.
 
 ## 2026-05-06 (4)
 
-- Made the `Present` toolbar menu button green for stronger visual priority.
-- Added Bullet and Page targets to the Style rule builder.
-- Added Page-specific builder properties for slide background color and top, bottom, left, and right content margins.
-- Added a `Custom` theme option and automatically switch decks to `theme: custom` when Page styling is added.
-- Extended scoped custom CSS support with internal `:page` and `:page-content` targets so generated page rules affect the slide surface and slide content area safely.
-- Expanded V5 browser coverage for bullet rules, page background styling, page margin styling, and the automatic Custom theme switch.
+- Reordered the editing toolbar group to `Projectize`, `Style`, and `AI Tools`.
+- Converted `AI Tools` into a dropdown with `Prompt` for the existing external AI prompt dialog and `Auto Split` for the existing split workflow.
+- Moved Auto Split out of the top-level toolbar and kept the existing review-and-accept behavior under the AI Tools dropdown.
+- Updated the already-split Auto Split warning to explain that Auto Split only works for Markdown that is not split into slides yet.
+- Updated README usage notes for the new AI Tools menu structure.
 - No new runtime or development dependencies were introduced.
 
-## 2026-05-06 (5)
+## 2026-05-07 (1)
 
-- Fixed Page background styling so generated background-color rules apply to the visible slide content surface rather than the hidden outer slide layer.
-- When a predefined theme is selected, generated `:page` background-color CSS is removed from the stored style block so the chosen theme background is visible again.
-- Expanded V5 browser coverage for predefined-theme cleanup after Page background styling.
+- Added an `Insert` toolbar dropdown between `Projectize` and `Style`, starting with a `Two Columns` action.
+- Added a Slip Markdown columns block syntax using `:::columns a:b`, two `:::column` sections, and `:::end`.
+- Added ratio validation for the insert dialog; ratios must be positive numbers that add up to 10, such as `4:6`.
+- Rendered two-column blocks as CSS grids where the row height follows the taller column.
+- Added column image fit behavior and a warning when images are constrained to the column width.
+- Updated README and V1 browser coverage for the Insert menu and two-column block insertion.
 - No new runtime or development dependencies were introduced.
 
-## 2026-05-06 (6)
+## 2026-05-07 (2)
 
-- Added a native color picker to the Style rule builder for color and background-color properties.
-- Chosen colors now populate the Value field as HEX codes, while manual value entry remains supported.
-- Updated README and V5 browser coverage for color-picker driven text and page background styling.
+- Reviewed `templates/basic_charts.md`; the fenced `slip-chart` syntax is valid for a dependency-free text chart feature.
+- Added `Insert > Basic Chart` under the Insert toolbar dropdown.
+- Added a Basic Chart dialog for bar charts, dot charts, progress bars, and custom text charts.
+- Bar and dot charts support horizontal or vertical directions and configurable value-per-bar/value-per-point defaults.
+- Progress bars support configurable value-per-bar defaults.
+- Added renderer support for `slip-chart` fenced code blocks, producing deterministic text charts from the chart type, caption, unit, and JSON data entries.
+- Inserted chart blocks include the chart name as caption and two example data entries; custom chart inserts the template text chart block.
+- Updated README and V1 browser coverage for Basic Chart insertion and rendering.
 - No new runtime or development dependencies were introduced.
 
-## 2026-05-06 (7)
+## 2026-05-07 (3)
 
-- Replaced asset card action text buttons with compact icon buttons for Insert, Rename, and Remove.
-- Kept localized tooltips and accessible labels on the asset action buttons.
-- Styled Remove as a compact red danger action so asset cards no longer overflow on image thumbnails.
-- No new runtime or development dependencies were introduced.
-
-## 2026-05-06 (8)
-
-- Replaced the browser prompt asset rename flow with inline editing in the asset name area.
-- Enter or blur commits a non-empty asset filename through the existing rename/reference-update pipeline.
-- Escape cancels inline rename, and empty filenames leave the asset unchanged.
-- Updated V2 asset browser coverage for inline rename and empty-name cancellation.
+- Moved the built-in sample deck and new deck Markdown out of `src/deck.js` into `templates/sample_deck.md` and `templates/new_deck.md`.
+- Updated `src/deck.js` to import those Markdown templates as raw Vite assets while preserving the existing exported constants.
+- Fixed clipped vertical Basic Chart rendering so the `~` overflow marker aligns with the affected bar column.
+- Updated contributor and README structure notes for the `templates/` directory.
+- Added V1 browser coverage for clipped vertical chart alignment.
 - No new runtime or development dependencies were introduced.
