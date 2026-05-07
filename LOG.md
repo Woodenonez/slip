@@ -534,3 +534,11 @@ V5 started on 2026-05-06. Work is interactive; there is no written V5 plan yet.
 - Updated contributor and README structure notes for the `templates/` directory.
 - Added V1 browser coverage for clipped vertical chart alignment.
 - No new runtime or development dependencies were introduced.
+
+## 2026-05-07 (4)
+
+- Added Slip Markdown layout helpers for `:::blank`, `:::divider`, and `:::align left|center|right` blocks.
+- Added `Insert > Blank Line`, `Insert > Divider`, and a separate `Align` dropdown for inserting editable helper blocks.
+- Updated English/Chinese UI strings, README usage notes, AGENTS parser-test guidance, and V1 browser coverage.
+- Fixed PDF/print output so the Assets panel is hidden and only preview slides are printed.
+- No new runtime or development dependencies were introduced.

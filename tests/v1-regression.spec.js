@@ -46,6 +46,22 @@ Print sizing should match the selected page shape.`, 1);
   expect(printCss).toMatch(/@page \{ size: A4; margin: 0; \}/);
 });
 
+test("prints only the preview slides", async ({ page }) => {
+  await openDeck(page, `${baseFrontmatter}
+
+# Print
+
+Only this rendered slide should be printable.`, 1);
+
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".preview-pane")).toBeVisible();
+  await expect(page.locator(".preview .slide").first()).toBeVisible();
+  await expect(page.locator("#asset-panel")).toHaveCSS("display", "none");
+  await expect(page.locator(".editor-pane")).toHaveCSS("display", "none");
+  await expect(page.locator(".outline")).toHaveCSS("display", "none");
+  await page.emulateMedia({ media: "screen" });
+});
+
 test("reports every slide that may clip in print or PDF", async ({ page }) => {
   const longLines = Array.from({ length: 34 }, (_, index) => `- Overflow line ${index + 1}`).join("\n");
   await openDeck(page, `${baseFrontmatter}
@@ -185,8 +201,9 @@ Menu actions should be grouped.`, 1);
   await expect(page.locator(".toolbar-actions > *").nth(6)).toHaveText("|");
   await expect(page.locator(".toolbar-actions > *").nth(7)).toHaveAttribute("id", "projectize");
   await expect(page.locator(".toolbar-actions > *").nth(8)).toContainText("Insert");
-  await expect(page.locator(".toolbar-actions > *").nth(9)).toHaveAttribute("id", "custom-css-toggle");
-  await expect(page.locator(".toolbar-actions > *").nth(10)).toContainText("AI Tools");
+  await expect(page.locator(".toolbar-actions > *").nth(9)).toContainText("Align");
+  await expect(page.locator(".toolbar-actions > *").nth(10)).toHaveAttribute("id", "custom-css-toggle");
+  await expect(page.locator(".toolbar-actions > *").nth(11)).toContainText("AI Tools");
 
   await page.locator("#import-menu-button").click();
   await expect(page.locator("#import-menu-options")).toBeVisible();
@@ -205,11 +222,45 @@ Menu actions should be grouped.`, 1);
   await expect(page.locator("#insert-menu-options")).toBeVisible();
   await expect(page.locator("#insert-menu-options")).toContainText("Two Columns");
   await expect(page.locator("#insert-menu-options")).toContainText("Basic Chart");
+  await expect(page.locator("#insert-menu-options")).toContainText("Blank Line");
+  await expect(page.locator("#insert-menu-options")).toContainText("Divider");
+
+  await page.locator("#align-menu-button").click();
+  await expect(page.locator("#insert-menu-options")).toBeHidden();
+  await expect(page.locator("#align-menu-options")).toBeVisible();
+  await expect(page.locator("#align-menu-options")).toContainText("Left");
+  await expect(page.locator("#align-menu-options")).toContainText("Middle");
+  await expect(page.locator("#align-menu-options")).toContainText("Right");
 
   await openAiToolsMenu(page);
   await expect(page.locator("#ai-tools-menu-options")).toBeVisible();
   await expect(page.locator("#ai-tools-menu-options")).toContainText("Prompt");
   await expect(page.locator("#ai-tools-menu-options")).toContainText("Auto Split");
+});
+
+test("inserts and renders blank, divider, and align blocks", async ({ page }) => {
+  await openDeck(page, `${baseFrontmatter}
+
+# Blocks
+
+Start.`, 1);
+
+  await page.locator("#insert-menu-button").click();
+  await page.locator("#insert-blank").click();
+  await expect(page.locator(".cm-content")).toContainText(":::blank 24px");
+  await expect(page.locator(".preview .slip-blank")).toHaveCount(1);
+  await expect(page.locator(".preview .slip-blank").first()).toHaveCSS("height", "24px");
+
+  await page.locator("#insert-menu-button").click();
+  await page.locator("#insert-divider").click();
+  await expect(page.locator(".cm-content")).toContainText(":::divider");
+  await expect(page.locator(".preview .slip-divider")).toHaveCount(1);
+
+  await page.locator("#align-menu-button").click();
+  await page.locator("#align-center").click();
+  await expect(page.locator(".cm-content")).toContainText(":::align center");
+  await expect(page.locator(".preview .slip-align-center")).toContainText("middle aligned content.");
+  await expect(page.locator(".preview .slip-align-center")).toHaveCSS("text-align", "center");
 });
 
 test("inserts and renders two column blocks", async ({ page }) => {

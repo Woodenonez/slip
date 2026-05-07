@@ -190,6 +190,33 @@ export function renderMarkdown(markdown, options = {}) {
       continue;
     }
 
+    const blank = line.match(/^:::blank(?:\s+(.+?))?\s*$/);
+    if (blank) {
+      flushParagraph();
+      flushList();
+      html += `<div class="slip-blank" style="height: ${escapeHtml(normalizeSpacerHeight(blank[1]))};"></div>`;
+      if (lines[lineIndex + 1]?.trim() === ":::") lineIndex += 1;
+      continue;
+    }
+
+    if (/^:::divider\s*$/.test(line)) {
+      flushParagraph();
+      flushList();
+      html += `<hr class="slip-divider">`;
+      if (lines[lineIndex + 1]?.trim() === ":::") lineIndex += 1;
+      continue;
+    }
+
+    const align = line.match(/^:::align\s+(left|center|middle|right)\s*$/i);
+    if (align) {
+      flushParagraph();
+      flushList();
+      const parsedAlign = parseAlignBlock(lines, lineIndex, align[1], options);
+      html += parsedAlign.html;
+      lineIndex = parsedAlign.endIndex;
+      continue;
+    }
+
     const heading = line.match(/^(#{1,3})\s+(.+)$/);
     if (heading) {
       flushParagraph();
@@ -232,6 +259,38 @@ export function renderMarkdown(markdown, options = {}) {
   flushParagraph();
   flushList();
   return html || "<p></p>";
+}
+
+function normalizeSpacerHeight(value) {
+  const trimmed = (value || "24px").trim();
+  if (/^\d+(?:\.\d+)?(?:px|rem|em|%)$/.test(trimmed)) return trimmed;
+  return "24px";
+}
+
+function parseAlignBlock(lines, startIndex, alignment, options) {
+  let body = "";
+  let endIndex = startIndex;
+
+  for (let index = startIndex + 1; index < lines.length; index += 1) {
+    if (lines[index].trim() === ":::end") {
+      endIndex = index;
+      break;
+    }
+    body += `${lines[index]}\n`;
+  }
+
+  if (endIndex === startIndex) {
+    return {
+      endIndex,
+      html: `<div class="slip-columns-warning">${escapeHtml("Invalid align block: missing :::end.")}</div>`,
+    };
+  }
+
+  const normalized = alignment.toLowerCase() === "middle" ? "center" : alignment.toLowerCase();
+  return {
+    endIndex,
+    html: `<div class="slip-align slip-align-${normalized}">${renderMarkdown(body.trim(), options)}</div>`,
+  };
 }
 
 function parseColumnsBlock(lines, startIndex, left, right, options) {

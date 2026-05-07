@@ -353,6 +353,13 @@ import { buildProjectPackageBlob, readProjectPackage } from "./src/projectPackag
     insertMenuOptions: document.getElementById("insert-menu-options"),
     insertColumns: document.getElementById("insert-columns"),
     insertBasicChart: document.getElementById("insert-basic-chart"),
+    insertBlank: document.getElementById("insert-blank"),
+    insertDivider: document.getElementById("insert-divider"),
+    alignMenuButton: document.getElementById("align-menu-button"),
+    alignMenuOptions: document.getElementById("align-menu-options"),
+    alignLeft: document.getElementById("align-left"),
+    alignCenter: document.getElementById("align-center"),
+    alignRight: document.getElementById("align-right"),
     columnsDialog: document.getElementById("columns-dialog"),
     columnsSummary: document.getElementById("columns-summary"),
     columnsRatio: document.getElementById("columns-ratio"),
@@ -2059,6 +2066,12 @@ ${message}
     elements.insertMenuButton.disabled = state.sharedReadOnly;
     elements.insertColumns.disabled = state.sharedReadOnly;
     elements.insertBasicChart.disabled = state.sharedReadOnly;
+    elements.insertBlank.disabled = state.sharedReadOnly;
+    elements.insertDivider.disabled = state.sharedReadOnly;
+    elements.alignMenuButton.disabled = state.sharedReadOnly;
+    elements.alignLeft.disabled = state.sharedReadOnly;
+    elements.alignCenter.disabled = state.sharedReadOnly;
+    elements.alignRight.disabled = state.sharedReadOnly;
     elements.autoSplit.disabled = state.sharedReadOnly;
     elements.customCssToggle.disabled = state.sharedReadOnly;
     elements.cloudMenuButton.disabled = state.sharedReadOnly;
@@ -2637,6 +2650,22 @@ ${message}
     }
     insertAtCursor(`\n:::columns ${ratio}\n:::column\nLeft column content.\n\n:::column\nRight column content.\n:::end\n`);
     closeColumnsDialog();
+  }
+
+  function insertBlankBlock() {
+    closeToolbarMenus();
+    insertAtCursor("\n:::blank 24px\n:::\n");
+  }
+
+  function insertDividerBlock() {
+    closeToolbarMenus();
+    insertAtCursor("\n:::divider\n:::\n");
+  }
+
+  function insertAlignBlock(alignment) {
+    closeToolbarMenus();
+    const label = alignment === "center" ? "middle" : alignment;
+    insertAtCursor(`\n:::align ${alignment}\n${label} aligned content.\n:::end\n`);
   }
 
   function openChartDialog() {
@@ -3294,6 +3323,14 @@ ${message}
   });
   elements.insertColumns.addEventListener("click", openColumnsDialog);
   elements.insertBasicChart.addEventListener("click", openChartDialog);
+  elements.insertBlank.addEventListener("click", insertBlankBlock);
+  elements.insertDivider.addEventListener("click", insertDividerBlock);
+  elements.alignMenuButton.addEventListener("click", () => {
+    toggleToolbarMenu(elements.alignMenuButton, elements.alignMenuOptions);
+  });
+  [elements.alignLeft, elements.alignCenter, elements.alignRight].forEach((button) => {
+    button.addEventListener("click", () => insertAlignBlock(button.dataset.align));
+  });
   elements.aiToolsMenuButton.addEventListener("click", () => {
     toggleToolbarMenu(elements.aiToolsMenuButton, elements.aiToolsMenuOptions);
   });

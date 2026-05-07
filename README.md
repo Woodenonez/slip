@@ -35,6 +35,9 @@ This serves the built app and share endpoints at `http://127.0.0.1:4174/`.
 - Click `Projectize`, then confirm, to convert the current deck into the V2 project model.
 - Click `Insert > Two Columns` to insert a two-column Markdown block. Ratios such as `4:6` must add up to 10, and each column can contain regular Markdown, images, lists, math, or code.
 - Click `Insert > Basic Chart` to insert a `slip-chart` text chart block for bar charts, dot charts, progress bars, or a custom text chart.
+- Click `Insert > Blank Line` to add an editable spacer such as `:::blank 24px`.
+- Click `Insert > Divider` to add a slide-local horizontal divider.
+- Click `Align` and choose Left, Middle, or Right to wrap content in an alignment block.
 - Click `Export` and choose `Embedded (md)` to inline project assets as data URLs in one `.md` file. Embedded Markdown export is refused when any image is over 350 KB or total images exceed 1.5 MB.
 - Click `Export` and choose `Package` to download a project-mode deck as a `.zip` containing `slides.md`, `config.json`, and `assets/`.
 - Click `Import` and choose `Package` to restore a structured Slip `.zip` project package.
@@ -69,6 +72,18 @@ This serves the built app and share endpoints at `http://127.0.0.1:4174/`.
   data: {"A": 30, "B": 50}
   ```
   ````
+- Add slide-local layout helpers with Slip blocks:
+  ```markdown
+  :::blank 32px
+  :::
+
+  :::divider
+  :::
+
+  :::align center
+  Centered text, images, math, or charts.
+  :::end
+  ```
 - Large asset lists render lazily in batches with cached image thumbnails to keep the panel responsive.
 - Missing `assets/...` references are shown as non-blocking warnings and placeholders in preview.
 - Click `AI Tools > Auto Split` to review generated slide breaks before accepting. Auto Split only works on Markdown that is not already split into slides.
